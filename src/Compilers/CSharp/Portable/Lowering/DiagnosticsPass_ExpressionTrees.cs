@@ -93,7 +93,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public override BoundNode VisitArrayCreation(BoundArrayCreation node)
         {
             var arrayType = (ArrayTypeSymbol)node.Type;
-            if (_inExpressionLambda && node.InitializerOpt != null && !arrayType.IsSZArray)
+            if (_inExpressionLambda && !HasCSharpExpression && node.InitializerOpt != null && !arrayType.IsSZArray)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsMultiDimensionalArrayInitializer, node);
             }
