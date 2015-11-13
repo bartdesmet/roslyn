@@ -2137,6 +2137,7 @@
     <Field Name="Body" Type="BoundBlock"/>
     <Field Name="Diagnostics" Type="ImmutableBindingDiagnostic&lt;AssemblySymbol&gt;"/>
     <Field Name="Binder" Type="Binder" Null="disallow" />
+    <Field Name="IsAsync" Type="bool" />
   </Node>
 
   <Node Name="UnboundLambda" Base="BoundExpression">

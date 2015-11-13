@@ -7082,7 +7082,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
     internal sealed partial class BoundLambda : BoundExpression
     {
-        public BoundLambda(SyntaxNode syntax, UnboundLambda unboundLambda, LambdaSymbol symbol, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, TypeSymbol? type, bool hasErrors = false)
+        public BoundLambda(SyntaxNode syntax, UnboundLambda unboundLambda, LambdaSymbol symbol, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, bool isAsync, TypeSymbol? type, bool hasErrors = false)
             : base(BoundKind.Lambda, syntax, type, hasErrors || unboundLambda.HasErrors() || body.HasErrors())
         {
 
@@ -7096,6 +7096,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             this.Body = body;
             this.Diagnostics = diagnostics;
             this.Binder = binder;
+            this.IsAsync = isAsync;
         }
 
         public UnboundLambda UnboundLambda { get; }
@@ -7104,15 +7105,16 @@ namespace Microsoft.CodeAnalysis.CSharp
         public BoundBlock Body { get; }
         public ImmutableBindingDiagnostic<AssemblySymbol> Diagnostics { get; }
         public Binder Binder { get; }
+        public bool IsAsync { get; }
 
         [DebuggerStepThrough]
         public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitLambda(this);
 
-        public BoundLambda Update(UnboundLambda unboundLambda, LambdaSymbol symbol, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, TypeSymbol? type)
+        public BoundLambda Update(UnboundLambda unboundLambda, LambdaSymbol symbol, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, bool isAsync, TypeSymbol? type)
         {
-            if (unboundLambda != this.UnboundLambda || !Symbols.SymbolEqualityComparer.ConsiderEverything.Equals(symbol, this.Symbol) || body != this.Body || diagnostics != this.Diagnostics || binder != this.Binder || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            if (unboundLambda != this.UnboundLambda || !Symbols.SymbolEqualityComparer.ConsiderEverything.Equals(symbol, this.Symbol) || body != this.Body || diagnostics != this.Diagnostics || binder != this.Binder || isAsync != this.IsAsync || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
             {
-                var result = new BoundLambda(this.Syntax, unboundLambda, symbol, body, diagnostics, binder, type, this.HasErrors);
+                var result = new BoundLambda(this.Syntax, unboundLambda, symbol, body, diagnostics, binder, isAsync, type, this.HasErrors);
                 result.CopyAttributes(this);
                 return result;
             }
@@ -11287,7 +11289,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             UnboundLambda unboundLambda = node.UnboundLambda;
             BoundBlock body = (BoundBlock)this.Visit(node.Body);
             TypeSymbol? type = this.VisitType(node.Type);
-            return node.Update(unboundLambda, node.Symbol, body, node.Diagnostics, node.Binder, type);
+            return node.Update(unboundLambda, node.Symbol, body, node.Diagnostics, node.Binder, node.IsAsync, type);
         }
         public override BoundNode? VisitUnboundLambda(UnboundLambda node)
         {
@@ -13666,12 +13668,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
-                updatedNode = node.Update(unboundLambda, symbol, body, node.Diagnostics, node.Binder, infoAndType.Type);
+                updatedNode = node.Update(unboundLambda, symbol, body, node.Diagnostics, node.Binder, node.IsAsync, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
             }
             else
             {
-                updatedNode = node.Update(unboundLambda, symbol, body, node.Diagnostics, node.Binder, node.Type);
+                updatedNode = node.Update(unboundLambda, symbol, body, node.Diagnostics, node.Binder, node.IsAsync, node.Type);
             }
             return updatedNode;
         }

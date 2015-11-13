@@ -76,8 +76,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         SyntaxNode IBoundLambdaOrFunction.Syntax { get { return Syntax; } }
 
-        public BoundLambda(SyntaxNode syntax, UnboundLambda unboundLambda, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, TypeSymbol? delegateType, InferredLambdaReturnType inferredReturnType)
-            : this(syntax, unboundLambda.WithNoCache(), (LambdaSymbol)binder.ContainingMemberOrLambda!, body, diagnostics, binder, delegateType)
+        public BoundLambda(SyntaxNode syntax, UnboundLambda unboundLambda, BoundBlock body, ImmutableBindingDiagnostic<AssemblySymbol> diagnostics, Binder binder, TypeSymbol? delegateType, bool isAsync, InferredLambdaReturnType inferredReturnType)
+            : this(syntax, unboundLambda.WithNoCache(), (LambdaSymbol)binder.ContainingMemberOrLambda!, body, diagnostics, binder, isAsync, delegateType)
         {
             InferredReturnType = inferredReturnType;
 
@@ -778,7 +778,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            var result = new BoundLambda(_unboundLambda.Syntax, _unboundLambda, block, diagnostics.ToReadOnlyAndFree(), lambdaBodyBinder, delegateType, inferredReturnType: default)
+            var result = new BoundLambda(_unboundLambda.Syntax, _unboundLambda, block, diagnostics.ToReadOnlyAndFree(), lambdaBodyBinder, delegateType, IsAsync, inferredReturnType: default)
             { WasCompilerGenerated = _unboundLambda.WasCompilerGenerated };
 
             return result;
@@ -880,6 +880,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 diagnostics.ToReadOnlyAndFree(),
                 lambdaBodyBinder,
                 delegateType,
+                IsAsync,
                 inferredReturnType)
             { WasCompilerGenerated = _unboundLambda.WasCompilerGenerated };
 
@@ -1095,7 +1096,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return null;
                 var delegateType = (NamedTypeSymbol?)lambda.Type;
                 ReturnInferenceCacheKey.GetFields(delegateType, IsAsync, out var parameterTypes, out var parameterRefKinds, out _);
-                return ReallyBindForErrorRecovery(delegateType, lambda.InferredReturnType, parameterTypes, parameterRefKinds);
+                return ReallyBindForErrorRecovery(delegateType, lambda.InferredReturnType, parameterTypes, parameterRefKinds, lambda.IsAsync);
             }
         }
 
@@ -1103,7 +1104,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             NamedTypeSymbol? delegateType,
             InferredLambdaReturnType inferredReturnType,
             ImmutableArray<TypeWithAnnotations> parameterTypes,
-            ImmutableArray<RefKind> parameterRefKinds)
+            ImmutableArray<RefKind> parameterRefKinds,
+            bool isAsync)
         {
             var returnType = inferredReturnType.TypeWithAnnotations;
             var refKind = inferredReturnType.RefKind;
@@ -1130,6 +1132,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 diagnostics.ToReadOnlyAndFree(),
                 lambdaBodyBinder,
                 delegateType,
+                isAsync,
                 new InferredLambdaReturnType(
                     inferredReturnType.NumExpressions,
                     isExplicitType: inferredReturnType.IsExplicitType,

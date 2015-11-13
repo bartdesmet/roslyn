@@ -196,6 +196,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitArrayLength((BoundArrayLength)node);
                 case BoundKind.AsOperator:
                     return VisitAsOperator((BoundAsOperator)node);
+                case BoundKind.AwaitExpression:
+                    return VisitAwaitExpression((BoundAwaitExpression)node);
                 case BoundKind.BaseReference:
                     return VisitBaseReference((BoundBaseReference)node);
                 case BoundKind.BinaryOperator:
@@ -414,6 +416,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return ExprFactory("TypeAs", Visit(node.Operand), _bound.Typeof(node.Type));
+        }
+
+        private BoundExpression VisitAwaitExpression(BoundAwaitExpression node)
+        {
+            return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(node.GetAwaiter));
         }
 
         private BoundExpression VisitBaseReference(BoundBaseReference node)
@@ -867,12 +874,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             var underlyingDelegateType = node.Type.GetDelegateType();
-            var result = _bound.Sequence(locals.ToImmutableAndFree(), initializers.ToImmutableAndFree(),
-                ExprFactory(
-                    "Lambda",
-                    ImmutableArray.Create<TypeSymbol>(underlyingDelegateType),
-                    TranslateLambdaBody(node.Body),
-                    _bound.ArrayOrEmpty(ParameterExpressionType, parameters.ToImmutableAndFree())));
+
+            var underlyingDelegateTypeSymbol = ImmutableArray.Create<TypeSymbol>(underlyingDelegateType);
+
+            var body = TranslateLambdaBody(node.Body);
+
+            var parameterArray = _bound.ArrayOrEmpty(ParameterExpressionType, parameters.ToImmutableAndFree());
+
+            var lambda =
+                node.IsAsync ?
+                CSharpExprFactory("Lambda", underlyingDelegateTypeSymbol, _bound.Literal(true), body, parameterArray) :
+                ExprFactory("Lambda", underlyingDelegateTypeSymbol, body, parameterArray);
+
+            var result = _bound.Sequence(locals.ToImmutableAndFree(), initializers.ToImmutableAndFree(), lambda);
 
             foreach (var p in node.Symbol.Parameters)
             {

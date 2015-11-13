@@ -568,7 +568,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                             var lambdaSyntax = (ParenthesizedLambdaExpressionSyntax)node.Syntax;
                             if (lambdaSyntax.AsyncKeyword.Kind() == SyntaxKind.AsyncKeyword)
                             {
-                                Error(ErrorCode.ERR_BadAsyncExpressionTree, node);
+                                if (!HasCSharpExpression)
+                                {
+                                    Error(ErrorCode.ERR_BadAsyncExpressionTree, node);
+                                }
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.Block)
                             {
@@ -586,7 +589,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                             var lambdaSyntax = (SimpleLambdaExpressionSyntax)node.Syntax;
                             if (lambdaSyntax.AsyncKeyword.Kind() == SyntaxKind.AsyncKeyword)
                             {
-                                Error(ErrorCode.ERR_BadAsyncExpressionTree, node);
+                                if (!HasCSharpExpression)
+                                {
+                                    Error(ErrorCode.ERR_BadAsyncExpressionTree, node);
+                                }
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.Block)
                             {

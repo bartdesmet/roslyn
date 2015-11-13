@@ -1461,6 +1461,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             out DebugId topLevelMethodId,
             out DebugId lambdaId)
         {
+            // TODO: Local function support for expression trees.
+
             Analysis.NestedFunction function = Analysis.GetNestedFunctionInTree(_analysis.ScopeTree, node.Symbol);
             var synthesizedMethod = function.SynthesizedLoweredMethod;
             Debug.Assert(synthesizedMethod != null);
@@ -1568,7 +1570,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var newType = VisitType(node.Type);
                 var newBody = (BoundBlock)Visit(node.Body);
-                node = node.Update(node.UnboundLambda, node.Symbol, newBody, node.Diagnostics, node.Binder, newType);
+                node = node.Update(node.UnboundLambda, node.Symbol, newBody, node.Diagnostics, node.Binder, node.IsAsync, newType);
                 var result0 = wasInExpressionLambda ? node : ExpressionLambdaRewriter.RewriteLambda(node, CompilationState, TypeMap, RecursionDepth, Diagnostics);
                 _inExpressionLambda = wasInExpressionLambda;
                 return result0;
