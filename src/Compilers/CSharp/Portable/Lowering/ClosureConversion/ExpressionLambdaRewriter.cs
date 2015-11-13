@@ -1055,7 +1055,18 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
             else
             {
-                return ExprFactory("New", ctor, args);
+                if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+                {
+                    var constructor = node.Constructor;
+                    return CSharpExprFactory(
+                        "New",
+                        ctor,
+                        ParameterBindings(node.Arguments, constructor, node.ArgumentNamesOpt));
+                }
+                else
+                {
+                    return ExprFactory("New", ctor, args);
+                }
             }
         }
 

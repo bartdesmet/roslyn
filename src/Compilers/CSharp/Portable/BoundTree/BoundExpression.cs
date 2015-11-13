@@ -505,15 +505,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<BoundExpression> newArguments,
             ImmutableArray<RefKind> newRefKinds,
             BoundObjectInitializerExpressionBase? newInitializerExpression,
-            TypeSymbol? changeTypeOpt = null)
+            TypeSymbol? changeTypeOpt = null,
+            bool keepArgInfo = false)
         {
             return Update(
                 constructor: Constructor,
                 arguments: newArguments,
-                argumentNamesOpt: default(ImmutableArray<string>),
+                argumentNamesOpt: keepArgInfo ? this.ArgumentNamesOpt : default(ImmutableArray<string>),
                 argumentRefKindsOpt: newRefKinds,
                 expanded: false,
-                argsToParamsOpt: default(ImmutableArray<int>),
+                argsToParamsOpt: keepArgInfo ? this.ArgsToParamsOpt : default(ImmutableArray<int>),
                 defaultArguments: default(BitVector),
                 constantValueOpt: ConstantValueOpt,
                 initializerExpressionOpt: newInitializerExpression,
