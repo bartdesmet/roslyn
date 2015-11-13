@@ -221,6 +221,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                         return Constant(fieldAccess);
                     }
                     return VisitFieldAccess(fieldAccess);
+                case BoundKind.IndexerAccess:
+                    return VisitIndexerAccess((BoundIndexerAccess)node);
                 case BoundKind.IsOperator:
                     return VisitIsOperator((BoundIsOperator)node);
                 case BoundKind.Lambda:
@@ -803,6 +805,20 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ExprFactory(
                 "Field",
                 receiver, _bound.FieldInfo(node.FieldSymbol));
+        }
+
+        private BoundExpression VisitIndexerAccess(BoundIndexerAccess node)
+        {
+            var indexer = node.Indexer;
+            var method = indexer.GetOwnOrInheritedGetMethod() ?? indexer.GetOwnOrInheritedSetMethod();
+
+            var receiver = method.IsStatic ? _bound.Null(ExpressionType) : Visit(node.ReceiverOpt);
+            return CSharpExprFactory(
+                "Index",
+                receiver,
+                _bound.MethodInfo(method),
+                ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
+            );
         }
 
         private BoundExpression VisitIsOperator(BoundIsOperator node)
