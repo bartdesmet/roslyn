@@ -607,6 +607,15 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (node.IsDelegateCall)
             {
+                if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+                {
+                    var method = node.Method;
+                    return CSharpExprFactory(
+                        "Invoke",
+                        Visit(node.ReceiverOpt),
+                        ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
+                }
+
                 // Generate Expression.Invoke(Receiver, arguments)
                 return ExprFactory(WellKnownMemberNames.DelegateInvokeName, Visit(node.ReceiverOpt), Expressions(node.Arguments));
             }
