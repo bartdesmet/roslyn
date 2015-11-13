@@ -1252,7 +1252,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             { WasCompilerGenerated = true };
         }
 
-        public BoundExpression MethodInfo(MethodSymbol method)
+        public BoundExpression MethodInfo(MethodSymbol method, bool useMethodBase = false)
         {
             // The least overridden virtual method is only called for value type receivers
             // in special circumstances. These circumstances are exactly the checks performed by
@@ -1267,7 +1267,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 Syntax,
                 method,
                 GetMethodFromHandleMethod(method.ContainingType),
-                WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodInfo))
+                useMethodBase ?
+                    WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodBase) :
+                    WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodInfo))
             { WasCompilerGenerated = true };
         }
 

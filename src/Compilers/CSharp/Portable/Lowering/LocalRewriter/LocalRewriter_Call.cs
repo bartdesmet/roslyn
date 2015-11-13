@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.CSharp.Symbols;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Operations;
 using Roslyn.Utilities;
+using System;
 
 namespace Microsoft.CodeAnalysis.CSharp
 {
@@ -202,6 +203,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             TypeSymbol type,
             ImmutableArray<LocalSymbol> temps)
         {
+            var argumentNamesOpt = default(ImmutableArray<string>);
+            var argsToParamsOpt = default(ImmutableArray<int>);
+
+            if (_inExpressionLambda && node != null)
+            {
+                argumentNamesOpt = node.ArgumentNamesOpt;
+                argsToParamsOpt = node.ArgsToParamsOpt;
+            }
+
             BoundExpression rewrittenBoundCall;
 
             if (method.IsStatic &&
@@ -233,12 +243,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                     rewrittenReceiver,
                     method,
                     rewrittenArguments,
-                    default(ImmutableArray<string>),
+                    argumentNamesOpt,
                     argumentRefKinds,
                     isDelegateCall: false,
                     expanded: false,
                     invokedAsExtensionMethod: invokedAsExtensionMethod,
-                    argsToParamsOpt: default(ImmutableArray<int>),
+                    argsToParamsOpt: argsToParamsOpt,
                     defaultArguments: default(BitVector),
                     resultKind: resultKind,
                     type: type);
@@ -249,12 +259,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                     rewrittenReceiver,
                     method,
                     rewrittenArguments,
-                    default(ImmutableArray<string>),
+                    argumentNamesOpt,
                     argumentRefKinds,
                     node.IsDelegateCall,
                     false,
                     node.InvokedAsExtensionMethod,
-                    default(ImmutableArray<int>),
+                    argsToParamsOpt,
                     default(BitVector),
                     node.ResultKind,
                     node.Type);
@@ -564,6 +574,56 @@ namespace Microsoft.CodeAnalysis.CSharp
                 argumentRefKindsOpt = GetEffectiveArgumentRefKinds(argumentRefKindsOpt, parameters);
 
                 return rewrittenArguments;
+            }
+
+            if (_inExpressionLambda)
+            {
+                BoundExpression? paramsExpression = null;
+
+                var hasMissingParameters = false;
+
+                if (expanded)
+                {
+                    paramsExpression = BuildParamsArray(syntax, methodOrIndexer, argsToParamsOpt, rewrittenArguments, parameters, paramsExpression);
+                }
+                else
+                {
+                    hasMissingParameters = parameters.Length != rewrittenArguments.Length;
+                }
+
+                // NB: We may have omitted optional parameters, so just copy what we got. The expression
+                //     lambda rewriter will take further steps to produce bindings. Note that we don't
+                //     fill in missing optional arguments; we let the runtime library do that.
+                //
+                // DESIGN: Is the above reasonable? It will miss filling in caller info attributes as well,
+                //         which makes sense because a runtime invocation may have other caller info than
+                //         the original apparent call site in the expression. Unfortunately, our runtime
+                //         library does not have any logic to bind caller info, so it will get its default
+                //         parameter values instead.
+
+                if (hasMissingParameters)
+                {
+                    Debug.Assert(!rewrittenArguments.Any(a => a == null));
+                    return rewrittenArguments.AsImmutableOrNull();
+                }
+                else
+                {
+                    var quotedArguments = new BoundExpression[parameters.Length];
+
+                    var copyTo = parameters.Length;
+                    if (paramsExpression != null)
+                    {
+                        copyTo--;
+                        quotedArguments[quotedArguments.Length - 1] = paramsExpression;
+                    }
+
+                    for (var i = 0; i < copyTo; i++)
+                    {
+                        quotedArguments[i] = rewrittenArguments[i];
+                    }
+
+                    return quotedArguments.AsImmutableOrNull();
+                }
             }
 
             // We have:
@@ -1031,7 +1091,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<int> argsToParamsOpt,
             ImmutableArray<BoundExpression> rewrittenArguments,
             ImmutableArray<ParameterSymbol> parameters,
-            BoundExpression tempStoreArgument)
+            BoundExpression? tempStoreArgument)
         {
             ArrayBuilder<BoundExpression> paramArray = ArrayBuilder<BoundExpression>.GetInstance();
             int paramsParam = parameters.Length - 1;

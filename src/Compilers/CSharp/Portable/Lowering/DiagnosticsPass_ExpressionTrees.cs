@@ -333,11 +333,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     Error(ErrorCode.ERR_ExpressionTreeContainsIndexedProperty, node);
                 }
-                else if (hasDefaultArgument(arguments, defaultArguments))
+                else if (!HasCSharpExpression && hasDefaultArgument(arguments, defaultArguments))
                 {
                     Error(ErrorCode.ERR_ExpressionTreeContainsOptionalArgument, node);
                 }
-                else if (!argumentNamesOpt.IsDefaultOrEmpty)
+                else if (!HasCSharpExpression && !argumentNamesOpt.IsDefaultOrEmpty)
                 {
                     Error(ErrorCode.ERR_ExpressionTreeContainsNamedArgument, node);
                 }
