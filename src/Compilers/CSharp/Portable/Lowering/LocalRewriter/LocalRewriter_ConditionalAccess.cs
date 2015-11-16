@@ -37,12 +37,19 @@ namespace Microsoft.CodeAnalysis.CSharp
         // by utilizing stack dup/pop instructions 
         internal BoundExpression? RewriteConditionalAccess(BoundConditionalAccess node, bool used)
         {
-            Debug.Assert(!_inExpressionLambda);
+            var loweredReceiver = this.VisitExpression(node.Receiver);
+
+            if (_inExpressionLambda)
+            {
+                // TODO: decide whether to optimize default value case or not
+                var loweredAccess = this.VisitExpression(node.AccessExpression);
+                return node.Update(loweredReceiver, loweredAccess, node.Type);
+            }
+
             Debug.Assert(node.AccessExpression.Type is { });
 
-            var loweredReceiver = this.VisitExpression(node.Receiver);
-            Debug.Assert(loweredReceiver.Type is { });
             var receiverType = loweredReceiver.Type;
+            Debug.Assert(receiverType is { });
 
             // Check trivial case
             if (loweredReceiver.IsDefaultValue() && receiverType.IsReferenceType)
@@ -204,6 +211,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitConditionalReceiver(BoundConditionalReceiver node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             var newtarget = _currentConditionalAccessTarget;
             Debug.Assert(newtarget is { Type: { } });
 

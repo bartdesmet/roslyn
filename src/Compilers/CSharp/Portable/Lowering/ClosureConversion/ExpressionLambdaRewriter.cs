@@ -208,6 +208,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitBinaryOperator(userDefCondLogOp.OperatorKind, userDefCondLogOp.LogicalOperator, userDefCondLogOp.Type, userDefCondLogOp.Left, userDefCondLogOp.Right);
                 case BoundKind.Call:
                     return VisitCall((BoundCall)node);
+                case BoundKind.ConditionalAccess:
+                    return VisitConditionalAccess((BoundConditionalAccess)node);
                 case BoundKind.ConditionalOperator:
                     return VisitConditionalOperator((BoundConditionalOperator)node);
                 case BoundKind.Conversion:
@@ -302,7 +304,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitArrayAccess(BoundArrayAccess node)
         {
-            var array = Visit(node.Expression);
+            return VisitArrayAccess(Visit(node.Expression), node);
+        }
+
+        private BoundExpression VisitArrayAccess(BoundExpression receiverOpt, BoundArrayAccess node, bool isConditional = false)
+        {
+            var array = receiverOpt;
             if (node.Indices.Length == 1)
             {
                 var arg = node.Indices[0];
@@ -311,11 +318,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     index = ConvertIndex(index, arg.Type, _int32Type);
                 }
-                return ExprFactory("ArrayIndex", array, index);
+                return ExprFactory(isConditional ? "ConditionalArrayIndex" : "ArrayIndex", array, index);
             }
             else
             {
-                return ExprFactory("ArrayIndex", array, Indices(node.Indices));
+                return ExprFactory(isConditional ? "ConditionalArrayIndex" : "ArrayIndex", array, Indices(node.Indices));
             }
         }
 
@@ -612,25 +619,35 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitCall(BoundCall node)
         {
+            return VisitCall(Visit(node.ReceiverOpt), node);
+        }
+
+        private BoundExpression VisitCall(BoundExpression receiverOpt, BoundCall node, bool isConditional = false)
+        {
             if (node.IsDelegateCall)
             {
                 if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
                 {
                     var method = node.Method;
                     return CSharpExprFactory(
-                        "Invoke",
-                        Visit(node.ReceiverOpt),
+                        isConditional ? "ConditionalInvoke" : "Invoke",
+                        receiverOpt,
                         ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
                 }
-
-                // Generate Expression.Invoke(Receiver, arguments)
-                return ExprFactory(WellKnownMemberNames.DelegateInvokeName, Visit(node.ReceiverOpt), Expressions(node.Arguments));
+                else
+                {
+                    // Generate Expression.Invoke(Receiver, arguments)
+                    return ExprFactory(
+                        isConditional ? "ConditionalInvoke" : "Invoke",
+                        receiverOpt,
+                        Expressions(node.Arguments));
+                }
             }
             else if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
             {
                 var method = node.Method;
                 return CSharpExprFactory(
-                    "Call",
+                    isConditional ? "ConditionalCall" : "Call",
                     method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
@@ -640,7 +657,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 // Generate Expression.Call(Receiver, Method, [typeArguments,] arguments)
                 var method = node.Method;
                 return ExprFactory(
-                    "Call",
+                    isConditional ? "ConditionalCall" : "Call",
                     method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     Expressions(node.Arguments));
@@ -669,6 +686,53 @@ namespace Microsoft.CodeAnalysis.CSharp
             var arg = Visit(argument);
 
             return CSharpExprFactory("Bind", _bound.MethodInfo(method, useMethodBase: true), _bound.StringLiteral(parameterName), arg);
+        }
+
+        private BoundExpression VisitConditionalAccess(BoundConditionalAccess node)
+        {
+            var receiver = Visit(node.Receiver);
+
+            var conditionals = new Queue<BoundExpression>();
+
+            var conditional = node;
+
+            while (conditional.AccessExpression.Kind == BoundKind.ConditionalAccess)
+            {
+                conditional = (BoundConditionalAccess)conditional.AccessExpression;
+                conditionals.Enqueue(conditional.Receiver);
+            }
+
+            conditionals.Enqueue(conditional.AccessExpression);
+
+            var res = receiver;
+
+            while (conditionals.Count > 0)
+            {
+                var expr = conditionals.Dequeue();
+
+                switch (expr.Kind)
+                {
+                    case BoundKind.Call:
+                        res = VisitCall(res, (BoundCall)expr, isConditional: true);
+                        break;
+                    case BoundKind.ArrayAccess:
+                        res = VisitArrayAccess(res, (BoundArrayAccess)expr, isConditional: true);
+                        break;
+                    case BoundKind.IndexerAccess:
+                        res = VisitIndexerAccess(res, (BoundIndexerAccess)expr, isConditional: true);
+                        break;
+                    case BoundKind.FieldAccess:
+                        res = VisitFieldAccess(res, (BoundFieldAccess)expr, isConditional: true);
+                        break;
+                    case BoundKind.PropertyAccess:
+                        res = VisitPropertyAccess(res, (BoundPropertyAccess)expr, isConditional: true);
+                        break;
+                    default:
+                        throw ExceptionUtilities.UnexpectedValue(expr.Kind);
+                }
+            }
+
+            return res;
         }
 
         private BoundExpression VisitConditionalOperator(BoundConditionalOperator node)
@@ -817,7 +881,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitFieldAccess(BoundFieldAccess node)
         {
-            var receiver = node.FieldSymbol.IsStatic ? _bound.Null(ExpressionType) : Visit(node.ReceiverOpt);
+            return VisitFieldAccess(Visit(node.ReceiverOpt), node);
+        }
+
+        private BoundExpression VisitFieldAccess(BoundExpression receiverOpt, BoundFieldAccess node, bool isConditional = false)
+        {
+            var receiver = node.FieldSymbol.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             return ExprFactory(
                 "Field",
                 receiver, _bound.FieldInfo(node.FieldSymbol));
@@ -825,12 +894,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitIndexerAccess(BoundIndexerAccess node)
         {
+            return VisitIndexerAccess(Visit(node.ReceiverOpt), node);
+        }
+
+        private BoundExpression VisitIndexerAccess(BoundExpression receiverOpt, BoundIndexerAccess node, bool isConditional = false)
+        {
             var indexer = node.Indexer;
             var method = indexer.GetOwnOrInheritedGetMethod() ?? indexer.GetOwnOrInheritedSetMethod();
 
-            var receiver = method.IsStatic ? _bound.Null(ExpressionType) : Visit(node.ReceiverOpt);
+            var receiver = method.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             return CSharpExprFactory(
-                "Index",
+                isConditional ? "ConditionalIndex" : "Index",
                 receiver,
                 _bound.MethodInfo(method),
                 ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
@@ -1130,7 +1204,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitPropertyAccess(BoundPropertyAccess node)
         {
-            var receiver = node.PropertySymbol.IsStatic ? _bound.Null(ExpressionType) : Visit(node.ReceiverOpt);
+            return VisitPropertyAccess(Visit(node.ReceiverOpt), node);
+        }
+
+        private BoundExpression VisitPropertyAccess(BoundExpression receiverOpt, BoundPropertyAccess node, bool isConditional = false)
+        {
+            var receiver = node.PropertySymbol.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             var getMethod = node.PropertySymbol.GetOwnOrInheritedGetMethod();
 
             // COMPAT: see https://github.com/dotnet/roslyn/issues/4471
@@ -1150,7 +1229,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 receiver = this.Convert(receiver, getMethod.ReceiverType, isChecked: false);
             }
 
-            return ExprFactory("Property", receiver, _bound.MethodInfo(getMethod));
+            return ExprFactory(isConditional ? "ConditionalProperty" : "Property", receiver, _bound.MethodInfo(getMethod));
         }
 
         private static BoundExpression VisitSizeOfOperator(BoundSizeOfOperator node)
@@ -1208,11 +1287,21 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression ExprFactory(string name, params BoundExpression[] arguments)
         {
+            if (name.StartsWith("Conditional"))
+            {
+                return CSharpExprFactory(name, arguments);
+            }
+
             return _bound.StaticCall(ExpressionType, name, arguments);
         }
 
         private BoundExpression ExprFactory(string name, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
         {
+            if (name.StartsWith("Conditional"))
+            {
+                return CSharpExprFactory(name, typeArgs, arguments);
+            }
+
             return _bound.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, ExpressionType, name, typeArgs, arguments);
         }
 

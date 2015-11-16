@@ -427,15 +427,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitArgListOperator(node);
         }
 
-        public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
-        {
-            if (_inExpressionLambda)
-            {
-                Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node);
-            }
+        //public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
+        //{
+        //    if (_inExpressionLambda)
+        //    {
+        //        Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node);
+        //    }
 
-            return base.VisitConditionalAccess(node);
-        }
+        //    return base.VisitConditionalAccess(node);
+        //}
 
         public override BoundNode VisitObjectInitializerMember(BoundObjectInitializerMember node)
         {
