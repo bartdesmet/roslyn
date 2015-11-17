@@ -47,6 +47,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _DynamicCSharpArgumentType;
         private NamedTypeSymbol DynamicCSharpArgumentType => _DynamicCSharpArgumentType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpArgument);
 
+        private NamedTypeSymbol _CSharpArgumentInfoFlagsType;
+        private NamedTypeSymbol CSharpArgumentInfoFlagsType => _CSharpArgumentInfoFlagsType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_RuntimeBinder_CSharpArgumentInfoFlags);
+
+        private NamedTypeSymbol _CSharpBinderFlagsType;
+        private NamedTypeSymbol CSharpBinderFlagsType => _CSharpBinderFlagsType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_RuntimeBinder_CSharpBinderFlags);
+
         private NamedTypeSymbol _ParameterExpressionType;
         private NamedTypeSymbol ParameterExpressionType
         {
@@ -253,6 +259,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitPropertyAccess((BoundPropertyAccess)node);
                 case BoundKind.QuotedDynamicMemberAccess:
                     return VisitDynamicMemberAccess((BoundQuotedDynamicMemberAccess)node);
+                case BoundKind.QuotedDynamicIndexAccess:
+                    return VisitDynamicIndexAccess((BoundQuotedDynamicIndexAccess)node);
                 case BoundKind.SizeOfOperator:
                     return VisitSizeOfOperator((BoundSizeOfOperator)node);
                 case BoundKind.UnaryOperator:
@@ -892,10 +900,33 @@ namespace Microsoft.CodeAnalysis.CSharp
             var receiver = Visit(node.Receiver);
             var name = node.Name;
             var args = _bound.Array(DynamicCSharpArgumentType, ImmutableArray<BoundExpression>.Empty); // REVIEW: remove altogether in runtime library?
-            var flags = node.Flags;
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
             var context = node.Context;
 
             return DynamicCSharpExprFactory("DynamicGetMember", receiver, name, args, flags, context);
+        }
+
+        private BoundExpression VisitDynamicIndexAccess(BoundQuotedDynamicIndexAccess node)
+        {
+            var receiver = Visit(node.Receiver);
+            var args = VisitDynamicArguments(node.Arguments);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            return DynamicCSharpExprFactory("DynamicGetIndex", receiver, args, flags, context);
+        }
+
+        private BoundExpression VisitDynamicArguments(ImmutableArray<BoundQuotedDynamicArgument> arguments)
+        {
+            var builder = ArrayBuilder<BoundExpression>.GetInstance();
+
+            foreach (var argument in arguments)
+            {
+                var arg = DynamicCSharpExprFactory("DynamicArgument", Visit(argument.Expression), argument.Name, _bound.Convert(CSharpArgumentInfoFlagsType, argument.Flags));
+                builder.Add(arg);
+            }
+
+            return _bound.Array(DynamicCSharpArgumentType, builder.ToImmutableAndFree());
         }
 
         private BoundExpression VisitFieldAccess(BoundFieldAccess node)

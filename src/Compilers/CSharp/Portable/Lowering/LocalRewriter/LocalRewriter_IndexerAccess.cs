@@ -60,11 +60,23 @@ namespace Microsoft.CodeAnalysis.CSharp
             // with the matching name of this dynamic invocation.
             EmbedIfNeedTo(loweredReceiver, node.ApplicableIndexers, node.Syntax);
 
-            return _dynamicFactory.MakeDynamicGetIndex(
-                MakeDynamicIndexerAccessReceiver(node, loweredReceiver),
-                loweredArguments,
-                argumentNames,
-                refKinds).ToExpression();
+            if (_inExpressionLambda)
+            {
+                // TODO: check need for MakeDynamicIndexerAccessReceiver here
+                return _dynamicFactory.MakeDynamicGetIndexExpression(
+                    loweredReceiver,
+                    loweredArguments,
+                    argumentNames,
+                    refKinds);
+            }
+            else
+            {
+                return _dynamicFactory.MakeDynamicGetIndex(
+                    MakeDynamicIndexerAccessReceiver(node, loweredReceiver),
+                    loweredArguments,
+                    argumentNames,
+                    refKinds).ToExpression();
+            }
         }
 
         public override BoundNode VisitIndexerAccess(BoundIndexerAccess node)

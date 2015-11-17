@@ -2223,6 +2223,22 @@
     <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
     <Field Name="Context" Type="BoundExpression" Null="disallow"/>
   </Node>
+
+  <Node Name="BoundQuotedDynamicIndexAccess" Base="BoundExpression">
+    <Field Name="Receiver" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Arguments" Type="ImmutableArray&lt;BoundQuotedDynamicArgument&gt;"/>
+    <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Context" Type="BoundExpression" Null="disallow"/>
+  </Node>
+
+  <Node Name="BoundQuotedDynamicArgument" Base="BoundExpression">
+    <!-- Non-null type is required for this node kind -->
+    <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>
+
+    <Field Name="Expression" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Name" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
+  </Node>
   
     <!-- An 'is pattern'. The fields DecisionDag, WhenTrueLabel, and WhenFalseLabel represent the inner pattern
          after removing any outer 'not's, so consumers (such as lowering and definite assignment of the local in

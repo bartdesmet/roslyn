@@ -896,7 +896,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitDynamicIndexerAccess(BoundDynamicIndexerAccess node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpDynamic)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }

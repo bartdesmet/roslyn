@@ -479,6 +479,24 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, loweredReceiver, RefKind.None, loweredArguments, refKinds, null, resultType);
         }
 
+        internal BoundExpression MakeDynamicGetIndexExpression(
+            BoundExpression loweredReceiver,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames,
+            ImmutableArray<RefKind> refKinds)
+        {
+            var args = MakeDynamicArgumentExpressions(loweredReceiver.Syntax, loweredArguments, argumentNames, refKinds);
+
+            return new BoundQuotedDynamicIndexAccess(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                args,
+                _factory.Literal((int)CSharpBinderFlags.None),
+                _factory.TypeofDynamicOperationContextType(),
+                DynamicTypeSymbol.Instance
+            );
+        }
+
         internal LoweredDynamicOperation MakeDynamicSetIndex(
             BoundExpression loweredReceiver,
             ImmutableArray<BoundExpression> loweredArguments,
@@ -626,6 +644,28 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return _factory.ArrayOrEmpty(argumentInfoFactory.ContainingType, infos);
+        }
+
+        internal ImmutableArray<BoundQuotedDynamicArgument> MakeDynamicArgumentExpressions(
+            CSharpSyntaxNode syntax,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames = default(ImmutableArray<string>),
+            ImmutableArray<RefKind> refKinds = default(ImmutableArray<RefKind>))
+        {
+            const string NoName = null;
+
+            var res = ArrayBuilder<BoundQuotedDynamicArgument>.GetInstance();
+
+            for (int i = 0; i < loweredArguments.Length; i++)
+            {
+                res.Add(MakeDynamicArgumentExpression(
+                    syntax,
+                    loweredArguments[i],
+                    argumentNames.IsDefaultOrEmpty ? NoName : argumentNames[i],
+                    refKinds.IsDefault ? RefKind.None : refKinds[i]));
+            }
+
+            return res.ToImmutableAndFree();
         }
 
         internal LoweredDynamicOperation MakeDynamicOperation(
@@ -899,7 +939,49 @@ namespace Microsoft.CodeAnalysis.CSharp
             return _factory.Call(null, argumentInfoFactory, _factory.Literal((int)flags), _factory.Literal(name));
         }
 
-        private static ImmutableArray<BoundExpression> GetCallSiteArguments(BoundExpression callSiteFieldAccess, BoundExpression? receiver, ImmutableArray<BoundExpression> arguments, BoundExpression? right)
+        internal BoundQuotedDynamicArgument MakeDynamicArgumentExpression(
+            CSharpSyntaxNode syntax,
+            BoundExpression boundArgument,
+            string name,
+            RefKind refKind)
+        {
+            CSharpArgumentInfoFlags flags = 0;
+
+            // NB: No "static type"; we promote it to a dedicated property on the DynamicCSharpExpression node to make it easier to consume by visitors.
+
+            if (name != null)
+            {
+                flags |= CSharpArgumentInfoFlags.NamedArgument;
+            }
+
+            // by-ref type doesn't trigger dynamic dispatch and it can't be a null literal => set UseCompileTimeType
+            if (refKind == RefKind.Out)
+            {
+                flags |= CSharpArgumentInfoFlags.IsOut | CSharpArgumentInfoFlags.UseCompileTimeType;
+            }
+            else if (refKind == RefKind.Ref)
+            {
+                flags |= CSharpArgumentInfoFlags.IsRef | CSharpArgumentInfoFlags.UseCompileTimeType;
+            }
+
+            var argType = boundArgument.Type;
+
+            if (boundArgument.ConstantValue != null)
+            {
+                flags |= CSharpArgumentInfoFlags.Constant;
+            }
+
+            // Check compile time type.
+            // See also DynamicRewriter::GenerateCallingObjectFlags.
+            if ((object)argType != null && !argType.IsDynamic())
+            {
+                flags |= CSharpArgumentInfoFlags.UseCompileTimeType;
+            }
+
+            return new BoundQuotedDynamicArgument(syntax, boundArgument, _factory.Literal(name), _factory.Literal((int)flags), DynamicTypeSymbol.Instance); // TODO: typing
+        }
+
+        internal static ImmutableArray<BoundExpression> GetCallSiteArguments(BoundExpression callSiteFieldAccess, BoundExpression? receiver, ImmutableArray<BoundExpression> arguments, BoundExpression? right)
         {
             var result = new BoundExpression[1 + (receiver != null ? 1 : 0) + arguments.Length + (right != null ? 1 : 0)];
             int j = 0;
