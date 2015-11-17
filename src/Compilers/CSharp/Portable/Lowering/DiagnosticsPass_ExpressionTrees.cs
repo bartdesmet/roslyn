@@ -428,15 +428,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitArgListOperator(node);
         }
 
-        //public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
-        //{
-        //    if (_inExpressionLambda)
-        //    {
-        //        Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node);
-        //    }
+        public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
+        {
+            if (_inExpressionLambda)
+            {
+                // TODO: Can we support the dynamic variant?
+                if (node.HasDynamicType())
+                {
+                    Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node); // TODO: refine error or lift restriction
+                }
+            }
 
-        //    return base.VisitConditionalAccess(node);
-        //}
+            return base.VisitConditionalAccess(node);
+        }
 
         public override BoundNode VisitObjectInitializerMember(BoundObjectInitializerMember node)
         {
