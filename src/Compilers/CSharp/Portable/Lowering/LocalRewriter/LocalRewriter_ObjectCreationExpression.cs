@@ -18,7 +18,17 @@ namespace Microsoft.CodeAnalysis.CSharp
             // There are no target types for dynamic object creation scenarios, so there should be no implicit handler conversions
             AssertNoImplicitInterpolatedStringHandlerConversions(node.Arguments);
             var loweredArguments = VisitList(node.Arguments);
-            var constructorInvocation = _dynamicFactory.MakeDynamicConstructorInvocation(node.Syntax, node.Type, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt).ToExpression();
+
+            BoundExpression constructorInvocation;
+
+            if (_inExpressionLambda)
+            {
+                constructorInvocation = _dynamicFactory.MakeDynamicConstructorInvocationExpression(node.Syntax, node.Type, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt);
+            }
+            else
+            {
+                constructorInvocation = _dynamicFactory.MakeDynamicConstructorInvocation(node.Syntax, node.Type, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt).ToExpression();
+            }
 
             if (node.InitializerExpressionOpt == null || node.InitializerExpressionOpt.HasErrors)
             {

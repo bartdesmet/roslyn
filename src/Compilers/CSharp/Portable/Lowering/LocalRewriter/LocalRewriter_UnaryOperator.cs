@@ -98,7 +98,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                     }
                 }
 
-                return _dynamicFactory.MakeDynamicUnaryOperator(kind, loweredOperand, type).ToExpression();
+                if (_inExpressionLambda)
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperatorExpression(kind, loweredOperand, type);
+                }
+                else
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperator(kind, loweredOperand, type).ToExpression();
+                }
             }
             else if (kind.IsLifted())
             {
@@ -563,7 +570,14 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (node.OperatorKind.IsDynamic())
             {
-                return _dynamicFactory.MakeDynamicUnaryOperator(node.OperatorKind, rewrittenValueToIncrement, node.Type).ToExpression();
+                if (_inExpressionLambda)
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperatorExpression(node.OperatorKind, rewrittenValueToIncrement, node.Type);
+                }
+                else
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperator(node.OperatorKind, rewrittenValueToIncrement, node.Type).ToExpression();
+                }
             }
 
             BoundExpression result;

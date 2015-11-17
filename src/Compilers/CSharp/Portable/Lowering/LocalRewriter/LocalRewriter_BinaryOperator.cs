@@ -201,6 +201,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda)
             {
+                // DESIGN: Lower the specific binary operator kinds below for dynamic expressions as well?
+                if (operatorKind.IsDynamic())
+                {
+                    return _dynamicFactory.MakeDynamicBinaryOperatorExpression(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type);
+                }
+
                 switch (operatorKind.Operator() | operatorKind.OperandTypes())
                 {
                     case BinaryOperatorKind.ObjectAndStringConcatenation:
@@ -231,7 +237,15 @@ namespace Microsoft.CodeAnalysis.CSharp
                     else
                     {
                         Debug.Assert(method is null);
-                        return _dynamicFactory.MakeDynamicBinaryOperator(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type).ToExpression();
+
+                        if (_inExpressionLambda)
+                        {
+                            return _dynamicFactory.MakeDynamicBinaryOperatorExpression(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type);
+                        }
+                        else
+                        {
+                            return _dynamicFactory.MakeDynamicBinaryOperator(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type).ToExpression();
+                        }
                     }
                 }
 
@@ -660,7 +674,15 @@ namespace Microsoft.CodeAnalysis.CSharp
                 temp = null;
             }
 
-            var op = _dynamicFactory.MakeDynamicBinaryOperator(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type).ToExpression();
+            BoundExpression op;
+            if (_inExpressionLambda)
+            {
+                op = _dynamicFactory.MakeDynamicBinaryOperatorExpression(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type);
+            }
+            else
+            {
+                op = _dynamicFactory.MakeDynamicBinaryOperator(operatorKind, loweredLeft, loweredRight, isCompoundAssignment, type).ToExpression();
+            }
 
             // IsFalse(true) or IsTrue(false) are always false:
             bool leftTestIsConstantFalse = testOperator == UnaryOperatorKind.DynamicFalse && constantLeft == ConstantValue.True ||
@@ -671,7 +693,15 @@ namespace Microsoft.CodeAnalysis.CSharp
                 // IsFalse(left && right)  ->  IsFalse(left) || IsFalse(And(left, right))
                 // IsTrue(left || right)   ->  IsTrue(left) || IsTrue(Or(left, right))
 
-                result = _dynamicFactory.MakeDynamicUnaryOperator(testOperator, op, boolean).ToExpression();
+                if (_inExpressionLambda)
+                {
+                    result = _dynamicFactory.MakeDynamicUnaryOperatorExpression(testOperator, op, boolean);
+                }
+                else
+                {
+                    result = _dynamicFactory.MakeDynamicUnaryOperator(testOperator, op, boolean).ToExpression();
+                }
+
                 if (!leftTestIsConstantFalse)
                 {
                     BoundExpression leftTest = MakeTruthTestForDynamicLogicalOperator(syntax, loweredLeft, boolean, leftTruthOperator, constrainedToTypeOpt, negative: isAnd);
@@ -724,7 +754,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (loweredLeft.HasDynamicType())
             {
                 Debug.Assert(leftTruthOperator == null);
-                return _dynamicFactory.MakeDynamicUnaryOperator(negative ? UnaryOperatorKind.DynamicFalse : UnaryOperatorKind.DynamicTrue, loweredLeft, boolean).ToExpression();
+
+                if (_inExpressionLambda)
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperatorExpression(negative ? UnaryOperatorKind.DynamicFalse : UnaryOperatorKind.DynamicTrue, loweredLeft, boolean);
+                }
+                else
+                {
+                    return _dynamicFactory.MakeDynamicUnaryOperator(negative ? UnaryOperatorKind.DynamicFalse : UnaryOperatorKind.DynamicTrue, loweredLeft, boolean).ToExpression();
+                }
             }
 
             // Although the spec doesn't capture it we do the same that Dev11 does:

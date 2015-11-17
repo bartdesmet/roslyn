@@ -35,6 +35,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private NamedTypeSymbol _ExpressionTypeType;
+        private NamedTypeSymbol ExpressionTypeType => _ExpressionTypeType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ExpressionType);
+
         private NamedTypeSymbol _CSharpExpressionType;
         private NamedTypeSymbol CSharpExpressionType => _CSharpExpressionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
 
@@ -263,8 +266,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDynamicIndexAccess((BoundQuotedDynamicIndexAccess)node);
                 case BoundKind.QuotedDynamicInvocation:
                     return VisitDynamicInvoke((BoundQuotedDynamicInvocation)node);
+                case BoundKind.QuotedDynamicNew:
+                    return VisitDynamicNew((BoundQuotedDynamicNew)node);
                 case BoundKind.QuotedDynamicCall:
                     return VisitDynamicCall((BoundQuotedDynamicCall)node);
+                case BoundKind.QuotedDynamicUnary:
+                    return VisitDynamicUnary((BoundQuotedDynamicUnary)node);
+                case BoundKind.QuotedDynamicBinary:
+                    return VisitDynamicBinary((BoundQuotedDynamicBinary)node);
                 case BoundKind.SizeOfOperator:
                     return VisitSizeOfOperator((BoundSizeOfOperator)node);
                 case BoundKind.UnaryOperator:
@@ -943,17 +952,55 @@ namespace Microsoft.CodeAnalysis.CSharp
             return DynamicCSharpExprFactory("DynamicInvokeMember", receiver, name, typeArguments, args, flags, context);
         }
 
+        private BoundExpression VisitDynamicNew(BoundQuotedDynamicNew node)
+        {
+            var receiver = node.TypeReceiver;
+            var args = VisitDynamicArguments(node.Arguments);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            return DynamicCSharpExprFactory("DynamicInvokeConstructor", receiver, args, flags, context);
+        }
+
+        private BoundExpression VisitDynamicUnary(BoundQuotedDynamicUnary node)
+        {
+            var expressionType = _bound.Convert(ExpressionTypeType, node.ExpressionType);
+            var operand = VisitDynamicArgument(node.Operand);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            // DESIGN: Emit calls to specific factories? Could be beneficial for bind time validation.
+            return DynamicCSharpExprFactory("MakeDynamicUnary", expressionType, operand, flags, context);
+        }
+
+        private BoundExpression VisitDynamicBinary(BoundQuotedDynamicBinary node)
+        {
+            var expressionType = _bound.Convert(ExpressionTypeType, node.ExpressionType);
+            var left = VisitDynamicArgument(node.Left);
+            var right = VisitDynamicArgument(node.Right);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            // DESIGN: Emit calls to specific factories? Could be beneficial for bind time validation.
+            return DynamicCSharpExprFactory("MakeDynamicBinary", expressionType, left, right, flags, context);
+        }
+
         private BoundExpression VisitDynamicArguments(ImmutableArray<BoundQuotedDynamicArgument> arguments)
         {
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
 
             foreach (var argument in arguments)
             {
-                var arg = DynamicCSharpExprFactory("DynamicArgument", Visit(argument.Expression), argument.Name, _bound.Convert(CSharpArgumentInfoFlagsType, argument.Flags));
+                var arg = VisitDynamicArgument(argument);
                 builder.Add(arg);
             }
 
             return _bound.Array(DynamicCSharpArgumentType, builder.ToImmutableAndFree());
+        }
+
+        private BoundExpression VisitDynamicArgument(BoundQuotedDynamicArgument argument)
+        {
+            return DynamicCSharpExprFactory("DynamicArgument", Visit(argument.Expression), argument.Name, _bound.Convert(CSharpArgumentInfoFlagsType, argument.Flags));
         }
 
         private BoundExpression VisitFieldAccess(BoundFieldAccess node)

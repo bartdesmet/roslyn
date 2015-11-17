@@ -147,6 +147,22 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, null, RefKind.None, loweredArguments, default(ImmutableArray<RefKind>), null, resultType);
         }
 
+        internal BoundExpression MakeDynamicUnaryOperatorExpression(
+            UnaryOperatorKind operatorKind,
+            BoundExpression loweredOperand,
+            TypeSymbol resultType)
+        {
+            CSharpBinderFlags binderFlags = 0;
+            if (operatorKind.IsChecked())
+            {
+                binderFlags |= CSharpBinderFlags.CheckedContext;
+            }
+
+            var operand = MakeDynamicArgumentExpression(loweredOperand.Syntax, loweredOperand, null, RefKind.None);
+
+            return new BoundQuotedDynamicUnary(loweredOperand.Syntax, _factory.Literal((int)operatorKind.ToExpressionType()), operand, _factory.Literal((int)binderFlags), _factory.TypeofDynamicOperationContextType(), resultType);
+        }
+
         internal LoweredDynamicOperation MakeDynamicBinaryOperator(
             BinaryOperatorKind operatorKind,
             BoundExpression loweredLeft,
@@ -188,6 +204,30 @@ namespace Microsoft.CodeAnalysis.CSharp
             }) : null;
 
             return MakeDynamicOperation(binderConstruction, null, RefKind.None, loweredArguments, default(ImmutableArray<RefKind>), null, resultType);
+        }
+
+        internal BoundExpression MakeDynamicBinaryOperatorExpression(
+            BinaryOperatorKind operatorKind,
+            BoundExpression loweredLeft,
+            BoundExpression loweredRight,
+            bool isCompoundAssignment,
+            TypeSymbol resultType)
+        {
+            CSharpBinderFlags binderFlags = 0;
+            if (operatorKind.IsChecked())
+            {
+                binderFlags |= CSharpBinderFlags.CheckedContext;
+            }
+
+            if (operatorKind.IsLogical())
+            {
+                binderFlags |= CSharpBinderFlags.BinaryOperationLogical;
+            }
+
+            var left = MakeDynamicArgumentExpression(loweredLeft.Syntax, loweredLeft, null, RefKind.None);
+            var right = MakeDynamicArgumentExpression(loweredRight.Syntax, loweredRight, null, RefKind.None);
+
+            return new BoundQuotedDynamicBinary(loweredLeft.Syntax, _factory.Literal((int)operatorKind.ToExpressionType(isCompoundAssignment)), left, right, _factory.Literal((int)binderFlags), _factory.TypeofDynamicOperationContextType(), resultType);
         }
 
         internal LoweredDynamicOperation MakeDynamicMemberInvocation(
@@ -445,6 +485,20 @@ namespace Microsoft.CodeAnalysis.CSharp
             }) : null;
 
             return MakeDynamicOperation(binderConstruction, loweredReceiver, RefKind.None, loweredArguments, refKinds, null, type);
+        }
+
+        internal BoundExpression MakeDynamicConstructorInvocationExpression(
+            CSharpSyntaxNode syntax,
+            TypeSymbol type,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames,
+            ImmutableArray<RefKind> refKinds)
+        {
+            var loweredReceiver = _factory.Typeof(type);
+
+            var args = MakeDynamicArgumentExpressions(syntax, loweredArguments, argumentNames, refKinds);
+
+            return new BoundQuotedDynamicNew(syntax, loweredReceiver, args, _factory.Literal(0), _factory.TypeofDynamicOperationContextType(), type);
         }
 
         internal LoweredDynamicOperation MakeDynamicGetMember(

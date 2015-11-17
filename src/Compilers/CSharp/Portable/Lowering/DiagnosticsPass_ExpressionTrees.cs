@@ -676,7 +676,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private void CheckDynamic(BoundUnaryOperator node)
         {
-            if (_inExpressionLambda && node.OperatorKind.IsDynamic())
+            if (_inExpressionLambda && node.OperatorKind.IsDynamic() && !HasCSharpDynamic)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }
@@ -684,7 +684,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private void CheckDynamic(BoundBinaryOperator node)
         {
-            if (_inExpressionLambda && node.OperatorKind.IsDynamic())
+            if (_inExpressionLambda && node.OperatorKind.IsDynamic() && !HasCSharpDynamic)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }
@@ -933,7 +933,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
-                Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
+                // TODO: Can we support initializers in combination with dynamic?
+                if (node.InitializerExpressionOpt != null)
+                {
+                    Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
+                }
             }
 
             return base.VisitDynamicObjectCreationExpression(node);
