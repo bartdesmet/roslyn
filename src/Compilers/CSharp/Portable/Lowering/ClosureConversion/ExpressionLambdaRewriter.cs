@@ -458,7 +458,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitAwaitExpression(BoundAwaitExpression node)
         {
-            return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(node.GetAwaiter));
+            if (node.IsDynamic)
+            {
+                return DynamicCSharpExprFactory("DynamicAwait", Visit(node.Expression));
+            }
+            else
+            {
+                return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(node.GetAwaiter));
+            }
         }
 
         private BoundExpression VisitBaseReference(BoundBaseReference node)
