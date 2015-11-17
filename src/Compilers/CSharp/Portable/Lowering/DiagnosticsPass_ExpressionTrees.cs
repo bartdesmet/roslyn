@@ -765,7 +765,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case ConversionKind.ImplicitDynamic:
                 case ConversionKind.ExplicitDynamic:
-                    if (_inExpressionLambda)
+                    if (_inExpressionLambda && !HasCSharpDynamic)
                     {
                         Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
                     }

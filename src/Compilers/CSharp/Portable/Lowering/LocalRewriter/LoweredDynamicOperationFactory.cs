@@ -111,6 +111,32 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, null, RefKind.None, loweredArguments, default(ImmutableArray<RefKind>), null, resultType);
         }
 
+        internal BoundExpression MakeDynamicConversionExpression(
+            BoundExpression loweredOperand,
+            bool isExplicit,
+            bool isArrayIndex,
+            bool isChecked,
+            TypeSymbol resultType)
+        {
+            CSharpBinderFlags binderFlags = 0;
+            Debug.Assert(!isExplicit || !isArrayIndex);
+
+            if (isChecked)
+            {
+                binderFlags |= CSharpBinderFlags.CheckedContext;
+            }
+            if (isExplicit)
+            {
+                binderFlags |= CSharpBinderFlags.ConvertExplicit;
+            }
+            if (isArrayIndex)
+            {
+                binderFlags |= CSharpBinderFlags.ConvertArrayIndex;
+            }
+
+            return new BoundQuotedDynamicConvert(loweredOperand.Syntax, loweredOperand, _factory.Typeof(resultType), _factory.Literal((int)binderFlags), _factory.TypeofDynamicOperationContextType(), resultType);
+        }
+
         internal LoweredDynamicOperation MakeDynamicUnaryOperator(
             UnaryOperatorKind operatorKind,
             BoundExpression loweredOperand,

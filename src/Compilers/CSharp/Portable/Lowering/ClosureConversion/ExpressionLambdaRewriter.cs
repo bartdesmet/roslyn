@@ -274,6 +274,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDynamicUnary((BoundQuotedDynamicUnary)node);
                 case BoundKind.QuotedDynamicBinary:
                     return VisitDynamicBinary((BoundQuotedDynamicBinary)node);
+                case BoundKind.QuotedDynamicConvert:
+                    return VisitDynamicConvert((BoundQuotedDynamicConvert)node);
                 case BoundKind.SizeOfOperator:
                     return VisitSizeOfOperator((BoundSizeOfOperator)node);
                 case BoundKind.UnaryOperator:
@@ -983,6 +985,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             // DESIGN: Emit calls to specific factories? Could be beneficial for bind time validation.
             return DynamicCSharpExprFactory("MakeDynamicBinary", expressionType, left, right, flags, context);
+        }
+
+        private BoundExpression VisitDynamicConvert(BoundQuotedDynamicConvert node)
+        {
+            var operand = Visit(node.Operand);
+            var type = node.TargetType;
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            // DESIGN: Emit calls to specific factories? Could be beneficial for bind time validation.
+            return DynamicCSharpExprFactory("DynamicConvert", operand, type, flags, context);
         }
 
         private BoundExpression VisitDynamicArguments(ImmutableArray<BoundQuotedDynamicArgument> arguments)

@@ -523,7 +523,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                     Debug.Assert(conversion.Method is null);
                     Debug.Assert(!conversion.IsExtensionMethod);
                     Debug.Assert(constantValueOpt == null);
-                    return _dynamicFactory.MakeDynamicConversion(rewrittenOperand, explicitCastInCode || conversion.Kind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType).ToExpression();
+                    if (_inExpressionLambda)
+                    {
+                        return _dynamicFactory.MakeDynamicConversionExpression(rewrittenOperand, explicitCastInCode || conversionKind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType);
+                    }
+                    else
+                    {
+                        return _dynamicFactory.MakeDynamicConversion(rewrittenOperand, explicitCastInCode || conversionKind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType).ToExpression();
+                    }
 
                 case ConversionKind.ImplicitTuple:
                 case ConversionKind.ExplicitTuple:
