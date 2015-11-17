@@ -261,6 +261,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDynamicMemberAccess((BoundQuotedDynamicMemberAccess)node);
                 case BoundKind.QuotedDynamicIndexAccess:
                     return VisitDynamicIndexAccess((BoundQuotedDynamicIndexAccess)node);
+                case BoundKind.QuotedDynamicInvocation:
+                    return VisitDynamicInvoke((BoundQuotedDynamicInvocation)node);
+                case BoundKind.QuotedDynamicCall:
+                    return VisitDynamicCall((BoundQuotedDynamicCall)node);
                 case BoundKind.SizeOfOperator:
                     return VisitSizeOfOperator((BoundSizeOfOperator)node);
                 case BoundKind.UnaryOperator:
@@ -914,6 +918,28 @@ namespace Microsoft.CodeAnalysis.CSharp
             var context = node.Context;
 
             return DynamicCSharpExprFactory("DynamicGetIndex", receiver, args, flags, context);
+        }
+
+        private BoundExpression VisitDynamicInvoke(BoundQuotedDynamicInvocation node)
+        {
+            var receiver = Visit(node.Receiver);
+            var args = VisitDynamicArguments(node.Arguments);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            return DynamicCSharpExprFactory("DynamicInvoke", receiver, args, flags, context);
+        }
+
+        private BoundExpression VisitDynamicCall(BoundQuotedDynamicCall node)
+        {
+            var receiver = node.TypeReceiver != null ? node.TypeReceiver : Visit(node.Receiver);
+            var name = node.Name;
+            var typeArguments = node.TypeArguments;
+            var args = VisitDynamicArguments(node.Arguments);
+            var flags = _bound.Convert(CSharpBinderFlagsType, node.Flags);
+            var context = node.Context;
+
+            return DynamicCSharpExprFactory("DynamicInvokeMember", receiver, name, typeArguments, args, flags, context);
         }
 
         private BoundExpression VisitDynamicArguments(ImmutableArray<BoundQuotedDynamicArgument> arguments)

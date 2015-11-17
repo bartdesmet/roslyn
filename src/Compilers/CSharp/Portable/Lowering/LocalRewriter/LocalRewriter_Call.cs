@@ -80,19 +80,43 @@ namespace Microsoft.CodeAnalysis.CSharp
                 default:
                     // delegate invocation
                     var loweredExpression = VisitExpression(node.Expression);
-                    return _dynamicFactory.MakeDynamicInvocation(loweredExpression, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, resultDiscarded).ToExpression();
+
+                    if (_inExpressionLambda)
+                    {
+                        return _dynamicFactory.MakeDynamicInvocationExpression(loweredExpression, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, resultDiscarded);
+                    }
+                    else
+                    {
+                        return _dynamicFactory.MakeDynamicInvocation(loweredExpression, loweredArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, resultDiscarded).ToExpression();
+                    }
             }
 
             Debug.Assert(loweredReceiver != null);
-            return _dynamicFactory.MakeDynamicMemberInvocation(
-                name,
-                loweredReceiver,
-                typeArguments,
-                loweredArguments,
-                node.ArgumentNamesOpt,
-                node.ArgumentRefKindsOpt,
-                hasImplicitReceiver,
-                resultDiscarded).ToExpression();
+
+            if (_inExpressionLambda)
+            {
+                return _dynamicFactory.MakeDynamicMemberInvocationExpression(
+                    name,
+                    loweredReceiver,
+                    typeArguments,
+                    loweredArguments,
+                    node.ArgumentNamesOpt,
+                    node.ArgumentRefKindsOpt,
+                    hasImplicitReceiver,
+                    resultDiscarded);
+            }
+            else
+            {
+                return _dynamicFactory.MakeDynamicMemberInvocation(
+                    name,
+                    loweredReceiver,
+                    typeArguments,
+                    loweredArguments,
+                    node.ArgumentNamesOpt,
+                    node.ArgumentRefKindsOpt,
+                    hasImplicitReceiver,
+                    resultDiscarded).ToExpression();
+            }
         }
 
         private void EmbedIfNeedTo(BoundExpression receiver, ImmutableArray<MethodSymbol> methods, SyntaxNode syntaxNode)

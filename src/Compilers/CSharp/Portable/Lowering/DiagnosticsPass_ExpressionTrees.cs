@@ -878,11 +878,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitNullCoalescingAssignmentOperator(node);
         }
 
+
         public override BoundNode VisitDynamicInvocation(BoundDynamicInvocation node)
         {
             if (_inExpressionLambda)
             {
-                Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
+                if (!HasCSharpDynamic)
+                {
+                    Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
+                }
 
                 // avoid reporting errors for the method group:
                 if (node.Expression.Kind == BoundKind.MethodGroup)

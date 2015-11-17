@@ -2231,6 +2231,23 @@
     <Field Name="Context" Type="BoundExpression" Null="disallow"/>
   </Node>
 
+  <Node Name="BoundQuotedDynamicInvocation" Base="BoundExpression">
+    <Field Name="Receiver" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Arguments" Type="ImmutableArray&lt;BoundQuotedDynamicArgument&gt;"/>
+    <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Context" Type="BoundExpression" Null="disallow"/>
+  </Node>
+
+  <Node Name="BoundQuotedDynamicCall" Base="BoundExpression">
+    <Field Name="Receiver" Type="BoundExpression" Null="allow"/>
+    <Field Name="TypeReceiver" Type="BoundExpression" Null="allow"/>
+    <Field Name="Name" Type="BoundExpression" Null="disallow"/>
+    <Field Name="TypeArguments" Type="BoundExpression"/>
+    <Field Name="Arguments" Type="ImmutableArray&lt;BoundQuotedDynamicArgument&gt;"/>
+    <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Context" Type="BoundExpression" Null="disallow"/>
+  </Node>
+
   <Node Name="BoundQuotedDynamicArgument" Base="BoundExpression">
     <!-- Non-null type is required for this node kind -->
     <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>

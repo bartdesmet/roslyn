@@ -258,6 +258,66 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, loweredReceiver, receiverRefKind, loweredArguments, refKinds, null, resultType);
         }
 
+        internal BoundQuotedDynamicCall MakeDynamicMemberInvocationExpression(
+            string name,
+            BoundExpression loweredReceiver,
+            ImmutableArray<TypeSymbol> typeArguments,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames,
+            ImmutableArray<RefKind> refKinds,
+            bool hasImplicitReceiver,
+            bool resultDiscarded)
+        {
+            CSharpBinderFlags binderFlags = 0;
+            if (hasImplicitReceiver && !_factory.TopLevelMethod.IsStatic)
+            {
+                binderFlags |= CSharpBinderFlags.InvokeSimpleName;
+            }
+
+            TypeSymbol resultType;
+            if (resultDiscarded)
+            {
+                binderFlags |= CSharpBinderFlags.ResultDiscarded;
+                resultType = _factory.SpecialType(SpecialType.System_Void);
+            }
+            else
+            {
+                resultType = AssemblySymbol.DynamicType;
+            }
+
+            RefKind receiverRefKind;
+            BoundExpression receiverStaticType;
+            if (loweredReceiver.Kind == BoundKind.TypeExpression)
+            {
+                receiverStaticType = _factory.Typeof(((BoundTypeExpression)loweredReceiver).Type);
+                loweredReceiver = null;
+                receiverRefKind = RefKind.None;
+            }
+            else
+            {
+                receiverStaticType = null;
+                receiverRefKind = GetReceiverRefKind(loweredReceiver);
+            }
+
+            // DESIGN: does runtime library have enough information without passing receiverRefKind?
+
+            var args = MakeDynamicArgumentExpressions(loweredReceiver.Syntax, loweredArguments, argumentNames, refKinds);
+
+            return new BoundQuotedDynamicCall(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                receiverStaticType,
+                _factory.Literal(name),
+                typeArguments.IsDefaultOrEmpty ?
+                    _factory.Null(_factory.WellKnownArrayType(WellKnownType.System_Type)) :
+                    _factory.Array(_factory.WellKnownType(WellKnownType.System_Type), _factory.TypeOfs(typeArguments)),
+                args,
+                _factory.Literal((int)binderFlags),
+                _factory.TypeofDynamicOperationContextType(),
+                resultType // TODO: check whether we should feed it through to the runtime library
+            );
+        }
+
         internal LoweredDynamicOperation MakeDynamicEventAccessorInvocation(
             string accessorName,
             BoundExpression loweredReceiver,
@@ -327,6 +387,37 @@ namespace Microsoft.CodeAnalysis.CSharp
             }) : null;
 
             return MakeDynamicOperation(binderConstruction, loweredReceiver, RefKind.None, loweredArguments, refKinds, null, resultType);
+        }
+
+        internal BoundQuotedDynamicInvocation MakeDynamicInvocationExpression(
+            BoundExpression loweredReceiver,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames,
+            ImmutableArray<RefKind> refKinds,
+            bool resultDiscarded)
+        {
+            TypeSymbol resultType;
+            CSharpBinderFlags binderFlags = 0;
+            if (resultDiscarded)
+            {
+                binderFlags |= CSharpBinderFlags.ResultDiscarded;
+                resultType = _factory.SpecialType(SpecialType.System_Void);
+            }
+            else
+            {
+                resultType = AssemblySymbol.DynamicType;
+            }
+
+            var args = MakeDynamicArgumentExpressions(loweredReceiver.Syntax, loweredArguments, argumentNames, refKinds);
+
+            return new BoundQuotedDynamicInvocation(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                args,
+                _factory.Literal((int)CSharpBinderFlags.None),
+                _factory.TypeofDynamicOperationContextType(),
+                resultType // TODO: check whether we should feed it through to the runtime library
+            );
         }
 
         internal LoweredDynamicOperation MakeDynamicConstructorInvocation(
