@@ -41,6 +41,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _CSharpParameterAssignmentType;
         private NamedTypeSymbol CSharpParameterAssignmentType => _CSharpParameterAssignmentType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ParameterAssignment);
 
+        private NamedTypeSymbol _DynamicCSharpExpressionType;
+        private NamedTypeSymbol DynamicCSharpExpressionType => _DynamicCSharpExpressionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpExpression);
+
+        private NamedTypeSymbol _DynamicCSharpArgumentType;
+        private NamedTypeSymbol DynamicCSharpArgumentType => _DynamicCSharpArgumentType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpArgument);
+
         private NamedTypeSymbol _ParameterExpressionType;
         private NamedTypeSymbol ParameterExpressionType
         {
@@ -245,6 +251,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitPointerElementAccess((BoundPointerElementAccess)node);
                 case BoundKind.PropertyAccess:
                     return VisitPropertyAccess((BoundPropertyAccess)node);
+                case BoundKind.QuotedDynamicMemberAccess:
+                    return VisitDynamicMemberAccess((BoundQuotedDynamicMemberAccess)node);
                 case BoundKind.SizeOfOperator:
                     return VisitSizeOfOperator((BoundSizeOfOperator)node);
                 case BoundKind.UnaryOperator:
@@ -879,6 +887,17 @@ namespace Microsoft.CodeAnalysis.CSharp
             throw ExceptionUtilities.UnexpectedValue(node.Argument);
         }
 
+        private BoundExpression VisitDynamicMemberAccess(BoundQuotedDynamicMemberAccess node)
+        {
+            var receiver = Visit(node.Receiver);
+            var name = node.Name;
+            var args = _bound.Array(DynamicCSharpArgumentType, ImmutableArray<BoundExpression>.Empty); // REVIEW: remove altogether in runtime library?
+            var flags = node.Flags;
+            var context = node.Context;
+
+            return DynamicCSharpExprFactory("DynamicGetMember", receiver, name, args, flags, context);
+        }
+
         private BoundExpression VisitFieldAccess(BoundFieldAccess node)
         {
             return VisitFieldAccess(Visit(node.ReceiverOpt), node);
@@ -1325,6 +1344,25 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
 
         private BoundExpression CSharpExprFactory(WellKnownMember method, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
+        {
+            var m0 = _bound.WellKnownMethod(method);
+            Debug.Assert((object)m0 != null);
+            Debug.Assert(m0.ParameterCount == arguments.Length);
+            var m1 = m0.Construct(typeArgs);
+            return _bound.Call(null, m1, arguments);
+        }
+
+        private BoundExpression DynamicCSharpExprFactory(string name, params BoundExpression[] arguments)
+        {
+            return _bound.StaticCall(DynamicCSharpExpressionType, name, arguments);
+        }
+
+        private BoundExpression DynamicCSharpExprFactory(string name, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
+        {
+            return _bound.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, DynamicCSharpExpressionType, name, typeArgs, arguments);
+        }
+
+        private BoundExpression DynamicCSharpExprFactory(WellKnownMember method, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
         {
             var m0 = _bound.WellKnownMethod(method);
             Debug.Assert((object)m0 != null);

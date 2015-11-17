@@ -1379,7 +1379,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             // GetMember operation:
             Debug.Assert(node.TypeArgumentsOpt.IsDefault);
             var loweredReceiver = VisitExpression(node.Receiver);
-            return _dynamicFactory.MakeDynamicGetMember(loweredReceiver, node.Name, node.Indexed).ToExpression();
+
+            if (_inExpressionLambda)
+            {
+                return _dynamicFactory.MakeDynamicGetMemberExpression(loweredReceiver, node.Name, node.Indexed);
+            }
+            else
+            {
+                return _dynamicFactory.MakeDynamicGetMember(loweredReceiver, node.Name, node.Indexed).ToExpression();
+            }
         }
     }
 }

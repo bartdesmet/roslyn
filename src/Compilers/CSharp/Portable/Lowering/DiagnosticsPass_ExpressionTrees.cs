@@ -74,8 +74,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private bool? _hasCSharpExpression;
+        private bool? _hasCSharpExpression, _hasCSharpDynamic;
         private bool HasCSharpExpression => IsDefined(ref _hasCSharpExpression, WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
+        private bool HasCSharpDynamic => IsDefined(ref _hasCSharpDynamic, WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpExpression);
 
         private bool IsDefined(ref bool? field, WellKnownType type)
         {
@@ -906,7 +907,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitDynamicMemberAccess(BoundDynamicMemberAccess node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpDynamic)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }

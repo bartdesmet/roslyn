@@ -2216,6 +2216,13 @@
     <Field Name="Format" Type="BoundLiteral?"/>
     <Field Name="IsInterpolatedStringHandlerAppendCall" Type="bool"/>
   </Node>
+
+  <Node Name="BoundQuotedDynamicMemberAccess" Base="BoundExpression">
+    <Field Name="Receiver" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Name" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Flags" Type="BoundExpression" Null="disallow"/>
+    <Field Name="Context" Type="BoundExpression" Null="disallow"/>
+  </Node>
   
     <!-- An 'is pattern'. The fields DecisionDag, WhenTrueLabel, and WhenFalseLabel represent the inner pattern
          after removing any outer 'not's, so consumers (such as lowering and definite assignment of the local in

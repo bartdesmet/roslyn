@@ -391,6 +391,27 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, loweredReceiver, RefKind.None, loweredArguments, default(ImmutableArray<RefKind>), null, resultType);
         }
 
+        internal BoundExpression MakeDynamicGetMemberExpression(
+            BoundExpression loweredReceiver,
+            string name,
+            bool resultIndexed)
+        {
+            CSharpBinderFlags binderFlags = 0;
+            if (resultIndexed)
+            {
+                binderFlags |= CSharpBinderFlags.ResultIndexed;
+            }
+
+            return new BoundQuotedDynamicMemberAccess(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                _factory.Literal(name),
+                _factory.Literal((int)binderFlags),
+                _factory.TypeofDynamicOperationContextType(),
+                DynamicTypeSymbol.Instance
+            );
+        }
+
         internal LoweredDynamicOperation MakeDynamicSetMember(
             BoundExpression loweredReceiver,
             string name,
