@@ -19,6 +19,12 @@ namespace Microsoft.CodeAnalysis.CSharp
             var rewrittenCondition = VisitExpression(node.Condition);
             var rewrittenBody = VisitStatement(node.Body);
             Debug.Assert(rewrittenBody is { });
+
+            if (_inExpressionLambda)
+            {
+                return node.Update(rewrittenCondition, rewrittenBody, node.BreakLabel, node.ContinueLabel);
+            }
+
             var startLabel = new GeneratedLabelSymbol("start");
 
             var syntax = node.Syntax;

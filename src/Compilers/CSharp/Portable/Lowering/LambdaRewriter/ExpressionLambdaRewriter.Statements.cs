@@ -82,9 +82,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                 /*
                 case BoundKind.SwitchStatement:
                     return VisitSwitch((BoundSwitchStatement)node);
-
+                */
                 case BoundKind.DoStatement:
                     return VisitDo((BoundDoStatement)node);
+                /*
                 case BoundKind.ForStatement:
                     return VisitFor((BoundForStatement)node);
                 case BoundKind.ForEachStatement:
@@ -426,6 +427,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             var ifElse = Visit(node.AlternativeOpt);
 
             return ifElse != null ? CSharpStmtFactory("IfThenElse", condition, ifThen, ifElse) : CSharpStmtFactory("IfThen", condition, ifThen);
+        }
+
+        private BoundExpression VisitDo(BoundDoStatement node)
+        {
+            var condition = Visit(node.Condition);
+
+            CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
+
+            var body = Visit(node.Body);
+
+            var loopInfo = CurrentLambdaInfo.PopLoop();
+
+            return CSharpStmtFactory("Do", body, condition, loopInfo.BreakLabel, loopInfo.ContinueLabel);
         }
 
         private BoundExpression VisitWhile(BoundWhileStatement node)
