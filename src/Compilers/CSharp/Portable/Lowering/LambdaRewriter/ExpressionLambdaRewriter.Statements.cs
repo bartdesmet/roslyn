@@ -77,9 +77,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.MultipleLocalDeclarations:
                     return VisitMultipleLocalDeclarations((BoundMultipleLocalDeclarations)node);
 
-                /*
                 case BoundKind.IfStatement:
                     return VisitIf((BoundIfStatement)node);
+                /*
                 case BoundKind.SwitchStatement:
                     return VisitSwitch((BoundSwitchStatement)node);
 
@@ -337,6 +337,15 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression VisitMultipleLocalDeclarations(BoundMultipleLocalDeclarations node)
         {
             throw new NotImplementedException();
+        }
+
+        private BoundExpression VisitIf(BoundIfStatement node)
+        {
+            var condition = Visit(node.Condition);
+            var ifThen = Visit(node.Consequence);
+            var ifElse = Visit(node.AlternativeOpt);
+
+            return ifElse != null ? CSharpStmtFactory("IfThenElse", condition, ifThen, ifElse) : CSharpStmtFactory("IfThen", condition, ifThen);
         }
 
         private LambdaCompilationInfo CurrentLambdaInfo

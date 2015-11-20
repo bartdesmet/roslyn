@@ -22,6 +22,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             var rewrittenAlternative = VisitStatement(node.AlternativeOpt);
             var syntax = (IfStatementSyntax)node.Syntax;
 
+            if (_inExpressionLambda)
+            {
+                return node.Update(rewrittenCondition, rewrittenConsequence, rewrittenAlternative);
+            }
+
             // EnC: We need to insert a hidden sequence point to handle function remapping in case 
             // the containing method is edited while methods invoked in the condition are being executed.
             if (this.Instrument && !node.WasCompilerGenerated)
