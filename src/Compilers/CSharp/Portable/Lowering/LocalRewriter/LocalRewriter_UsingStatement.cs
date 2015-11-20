@@ -47,6 +47,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             else
             {
                 Debug.Assert(node.DeclarationsOpt is { });
+
+                if (_inExpressionLambda)
+                {
+                    var rewrittenDeclarations = VisitUsingDeclarations(node.DeclarationsOpt, node.IDisposableConversion);
+                    return node.Update(node.Locals, rewrittenDeclarations, null, Conversion.NoConversion, rewrittenBody);
+                }
+
                 SyntaxToken awaitKeyword = node.Syntax.Kind() == SyntaxKind.UsingStatement ? ((UsingStatementSyntax)node.Syntax).AwaitKeyword : default;
                 return MakeDeclarationUsingStatement(node.Syntax,
                                                      tryBlock,
@@ -104,7 +111,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <summary>
         /// Lower "using [await] (expression) statement" to a try-finally block.
         /// </summary>
-        private BoundBlock MakeExpressionUsingStatement(BoundUsingStatement node, BoundBlock tryBlock)
+        private BoundNode MakeExpressionUsingStatement(BoundUsingStatement node, BoundBlock tryBlock)
         {
             Debug.Assert(node.ExpressionOpt != null);
             Debug.Assert(node.DeclarationsOpt == null);
@@ -124,8 +131,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             // If expr is the constant null then we can elide the whole thing and simply generate the statement. 
 
             BoundExpression rewrittenExpression = VisitExpression(node.ExpressionOpt);
+
             if (rewrittenExpression.ConstantValue == ConstantValue.Null)
             {
+                // NB: In an expression tree, we suppress the optimization
+                if (_inExpressionLambda)
+                {
+                    return node.Update(node.Locals, null, rewrittenExpression, node.IDisposableConversion, tryBlock);
+                }
+
                 Debug.Assert(node.Locals.IsEmpty); // TODO: This might not be a valid assumption in presence of semicolon operator.
                 return tryBlock;
             }
@@ -172,10 +186,20 @@ namespace Microsoft.CodeAnalysis.CSharp
                     @checked: false,
                     constantValueOpt: rewrittenExpression.ConstantValue);
 
+                if (_inExpressionLambda)
+                {
+                    return node.Update(node.Locals, null, tempInit, Conversion.NoConversion, tryBlock);
+                }
+
                 boundTemp = _factory.StoreToTemp(tempInit, out tempAssignment, kind: SynthesizedLocalKind.Using);
             }
             else
             {
+                if (_inExpressionLambda)
+                {
+                    return node.Update(node.Locals, null, rewrittenExpression, Conversion.NoConversion, tryBlock);
+                }
+
                 // ResourceType temp = expr;
                 boundTemp = _factory.StoreToTemp(rewrittenExpression, out tempAssignment, syntaxOpt: usingSyntax, kind: SynthesizedLocalKind.Using);
             }
@@ -521,6 +545,33 @@ namespace Microsoft.CodeAnalysis.CSharp
                 resultKind: LookupResultKind.Viable,
                 type: method.ReturnType,
                 temps: null);
+        }
+
+        public BoundMultipleLocalDeclarations VisitUsingDeclarations(BoundMultipleLocalDeclarations node, Conversion idisposableConversion)
+        {
+            var decls = ArrayBuilder<BoundLocalDeclaration>.GetInstance(node.LocalDeclarations.Length);
+
+            foreach (var decl in node.LocalDeclarations)
+            {
+                var rewrittenInitializer = VisitExpression(decl.InitializerOpt);
+
+                if (decl.LocalSymbol.Type.IsDynamic())
+                {
+                    rewrittenInitializer = MakeConversion(
+                        decl.Syntax,
+                        rewrittenInitializer,
+                        idisposableConversion,
+                        _compilation.GetSpecialType(SpecialType.System_IDisposable),
+                        @checked: false);
+                }
+
+                // TODO: Check what the ArgumentsOpt are for.
+                var declRewritten = decl.Update(decl.LocalSymbol, decl.DeclaredType, rewrittenInitializer, VisitList(decl.ArgumentsOpt));
+
+                decls.Add(declRewritten);
+            }
+
+            return node.Update(decls.ToImmutableAndFree());
         }
     }
 }

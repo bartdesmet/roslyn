@@ -107,10 +107,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                 
                 case BoundKind.LockStatement:
                     return VisitLock((BoundLockStatement)node);
-                /*
+
                 case BoundKind.UsingStatement:
                     return VisitUsing((BoundUsingStatement)node);
-                */
+
                 case BoundKind.TryStatement:
                     return VisitTry((BoundTryStatement)node);
                 case BoundKind.ThrowStatement:
@@ -566,6 +566,61 @@ namespace Microsoft.CodeAnalysis.CSharp
             var body = Visit(node.Body);
 
             return CSharpStmtFactory("Lock", argument, body);
+        }
+
+        private BoundExpression VisitUsing(BoundUsingStatement node)
+        {
+            // REVIEW: Locals
+            // REVIEW: IDisposableConversion
+            // TODO: DisposeMethodOpt (pattern-based in C# 8.0)
+            // TODO: AwaitOpt (await using in C# 8.0)
+
+            if (node.ExpressionOpt != null)
+            {
+                var expression = Visit(node.ExpressionOpt);
+                var body = Visit(node.Body);
+
+                return CSharpStmtFactory("Using", expression, body);
+            }
+            else
+            {
+                var decls = node.DeclarationsOpt.LocalDeclarations;
+                var n = decls.Length;
+
+                var localsBuilder = ArrayBuilder<LocalSymbol>.GetInstance(n);
+
+                // NB: We're just flattening all locals into a single list; no need to narrow down the
+                //     scopes here; all locals should be unique and will be mapped onto unique expressions.
+                //     Also, for expression trees, all ParameterExpression creations precede the creation
+                //     of the tree using factories, so there's no way to narrow down scopes.
+
+                for (var i = 0; i < n; i++)
+                {
+                    localsBuilder.Add(decls[i].LocalSymbol);
+                }
+
+                var locals = localsBuilder.ToImmutableAndFree();
+
+                PushLocals(locals);
+
+                var res = Visit(node.Body);
+
+                for (var i = n - 1; i >= 0; i--)
+                {
+                    var decl = decls[i];
+
+                    var local = _localMap[decl.LocalSymbol];
+                    var initializer = Visit(decl.InitializerOpt);
+
+                    // NB: We just nest Using blocks but we could improve the node in the runtime library
+                    //     to capture multiple declarations, a la For.
+                    res = CSharpStmtFactory("Using", local, initializer, res);
+                }
+
+                PopLocals(locals);
+
+                return res;
+            }
         }
 
         private BoundExpression VisitTry(BoundTryStatement node)
