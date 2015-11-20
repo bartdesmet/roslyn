@@ -209,6 +209,7 @@ namespace Microsoft.CodeAnalysis
         System_Linq_Expressions_MemberBinding,
         System_Linq_Expressions_ExpressionType,
         System_Linq_Expressions_LabelTarget,
+        System_Linq_Expressions_CatchBlock,
         System_Linq_IQueryable,
         System_Linq_IQueryable_T,
 
@@ -539,6 +540,7 @@ namespace Microsoft.CodeAnalysis
             "System.Linq.Expressions.MemberBinding",
             "System.Linq.Expressions.ExpressionType",
             "System.Linq.Expressions.LabelTarget",
+            "System.Linq.Expressions.CatchBlock",
             "System.Linq.IQueryable",
             "System.Linq.IQueryable`1",
 

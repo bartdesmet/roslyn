@@ -37,6 +37,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private NamedTypeSymbol _CatchBlockType;
+        private NamedTypeSymbol CatchBlockType
+        {
+            get
+            {
+                if ((object)_CatchBlockType == null)
+                {
+                    _CatchBlockType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_CatchBlock);
+                }
+                return _CatchBlockType;
+            }
+        }
+
         private BoundExpression Visit(BoundStatement node)
         {
             if (node == null)
@@ -99,10 +112,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 /*
                 case BoundKind.UsingStatement:
                     return VisitUsing((BoundUsingStatement)node);
-
+                */
                 case BoundKind.TryStatement:
                     return VisitTry((BoundTryStatement)node);
-                */
                 case BoundKind.ThrowStatement:
                     return VisitThrow((BoundThrowStatement)node);
                 /*
@@ -529,6 +541,86 @@ namespace Microsoft.CodeAnalysis.CSharp
             var body = Visit(node.Body);
 
             return CSharpStmtFactory("Lock", argument, body);
+        }
+
+        private BoundExpression VisitTry(BoundTryStatement node)
+        {
+            var body = Visit(node.TryBlock);
+
+            var @catch = node.CatchBlocks;
+            if (@catch.Length > 0)
+            {
+                var catchBlocks = ArrayBuilder<BoundExpression>.GetInstance();
+
+                foreach (var catchBlock in node.CatchBlocks)
+                {
+                    catchBlocks.Add(VisitCatchBlock(catchBlock));
+                }
+
+                var catches = _bound.Array(CatchBlockType, catchBlocks.ToImmutableAndFree());
+
+                if (node.FinallyBlockOpt != null)
+                {
+                    var @finally = Visit(node.FinallyBlockOpt);
+                    return CSharpStmtFactory("TryCatchFinally", body, @finally, catches);
+                }
+                else
+                {
+                    return CSharpStmtFactory("TryCatch", body, catches);
+                }
+            }
+            else
+            {
+                var @finally = Visit(node.FinallyBlockOpt);
+                return CSharpStmtFactory("TryFinally", body, @finally);
+            }
+        }
+
+        private BoundExpression VisitCatchBlock(BoundCatchBlock node)
+        {
+            // TODO: check use of ExceptionSourceOpt
+
+            if (node.LocalOpt != null)
+            {
+                var local = new[] { node.LocalOpt }.ToImmutableArray();
+
+                var locals = PushLocals(local);
+
+                var body = Visit(node.Body);
+                var filter = Visit(node.ExceptionFilterOpt);
+
+                var variable = locals.ToImmutableAndFree()[0];
+
+                PopLocals(local);
+
+                if (filter != null)
+                {
+                    return CSharpStmtFactory("Catch", variable, body, filter);
+                }
+                else
+                {
+                    return CSharpStmtFactory("Catch", variable, body);
+                }
+            }
+            else
+            {
+                var type = node.ExceptionTypeOpt ?? _bound.WellKnownType(WellKnownType.System_Exception); // TODO: catch System.Object instead?
+                type = _typeMap.SubstituteType(type).Type;
+
+                var body = Visit(node.Body);
+                var filter = Visit(node.ExceptionFilterOpt);
+
+                var exceptionType = _bound.Typeof(type);
+
+                if (filter != null)
+                {
+                    return CSharpStmtFactory("Catch", exceptionType, body, filter);
+                }
+                else
+                {
+                    return CSharpStmtFactory("Catch", exceptionType, body);
+                }
+            }
         }
 
         private BoundExpression VisitThrow(BoundThrowStatement node)

@@ -366,6 +366,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.IncrementOperator:
                     return VisitIncrementOperator((BoundIncrementOperator)node);
 
+                case BoundKind.SequencePointExpression:
+                    return Visit(((BoundSequencePointExpression)node).Expression);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
