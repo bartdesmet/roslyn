@@ -34,6 +34,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return node;
             }
 
+            if (_inExpressionLambda)
+            {
+                var rewrittenExpression = (BoundExpression)Visit(node.Expression);
+                var rewrittenBody = (BoundStatement)Visit(node.Body);
+                return node.Update(node.EnumeratorInfoOpt, node.ElementConversion, node.IterationVariableType, node.IterationVariable, rewrittenExpression, rewrittenBody, node.Checked, node.BreakLabel, node.ContinueLabel);
+            }
+
             BoundExpression collectionExpression = GetUnconvertedCollectionExpression(node, out _);
             TypeSymbol? nodeExpressionType = collectionExpression.Type;
             Debug.Assert(nodeExpressionType is { });

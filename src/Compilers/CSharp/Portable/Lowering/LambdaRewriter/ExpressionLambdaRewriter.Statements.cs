@@ -100,10 +100,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDo((BoundDoStatement)node);
                 case BoundKind.ForStatement:
                     return VisitFor((BoundForStatement)node);
-                /*
                 case BoundKind.ForEachStatement:
                     return VisitForEach((BoundForEachStatement)node);
-                */
                 case BoundKind.WhileStatement:
                     return VisitWhile((BoundWhileStatement)node);
                 
@@ -488,6 +486,33 @@ namespace Microsoft.CodeAnalysis.CSharp
             var increment = _bound.Array(ExpressionType, increments);
 
             return CSharpStmtFactory("For", variables, initializer, condition ?? _bound.Null(ExpressionType), increment, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+        }
+
+        private BoundExpression VisitForEach(BoundForEachStatement node)
+        {
+            var expression = Visit(node.Expression);
+
+            var local = new[] { node.IterationVariable }.ToImmutableArray();
+            var locals = PushLocals(local);
+
+            CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
+
+            var body = Visit(node.Body);
+
+            var loopInfo = CurrentLambdaInfo.PopLoop();
+
+            var variable = locals.ToImmutableAndFree()[0];
+            PopLocals(local);
+
+            if (node.EnumeratorInfoOpt != null && node.ElementConversion.IsUserDefined)
+            {
+                TypeSymbol lambdaParamType = node.EnumeratorInfoOpt.ElementType;
+                var conversion = MakeConversionLambda(node.ElementConversion, lambdaParamType, node.IterationVariableType.Type);
+                return CSharpStmtFactory("ForEach", variable, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion);
+            }
+
+            // TODO: add overloads that take in MethodInfo for GetEnumerator etc?
+            return CSharpStmtFactory("ForEach", variable, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
         }
 
         private IEnumerable<BoundExpression> VisitStatements(BoundStatement node)
