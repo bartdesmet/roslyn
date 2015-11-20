@@ -93,10 +93,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                 */
                 case BoundKind.WhileStatement:
                     return VisitWhile((BoundWhileStatement)node);
-                /*
+                
                 case BoundKind.LockStatement:
                     return VisitLock((BoundLockStatement)node);
-
+                /*
                 case BoundKind.UsingStatement:
                     return VisitUsing((BoundUsingStatement)node);
 
@@ -520,6 +520,14 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression VisitContinue(BoundContinueStatement node)
         {
             return CSharpStmtFactory("Continue", CurrentLambdaInfo.ClosestLoopContinue);
+        }
+
+        private BoundExpression VisitLock(BoundLockStatement node)
+        {
+            var argument = Visit(node.Argument);
+            var body = Visit(node.Body);
+
+            return CSharpStmtFactory("Lock", argument, body);
         }
 
         private LambdaCompilationInfo CurrentLambdaInfo

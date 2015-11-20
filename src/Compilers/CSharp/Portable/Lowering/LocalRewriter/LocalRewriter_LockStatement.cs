@@ -24,6 +24,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundStatement? rewrittenBody = VisitStatement(node.Body);
             Debug.Assert(rewrittenBody is { });
 
+            if (_inExpressionLambda)
+            {
+                return node.Update(rewrittenArgument, rewrittenBody);
+            }
+
             TypeSymbol? argumentType = rewrittenArgument.Type;
             if (argumentType is null)
             {
