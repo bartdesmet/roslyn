@@ -102,9 +102,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.TryStatement:
                     return VisitTry((BoundTryStatement)node);
+                */
                 case BoundKind.ThrowStatement:
                     return VisitThrow((BoundThrowStatement)node);
-
+                /*
                 case BoundKind.GotoStatement:
                     return VisitGoto((BoundGotoStatement)node);
                 case BoundKind.LabeledStatement:
@@ -528,6 +529,21 @@ namespace Microsoft.CodeAnalysis.CSharp
             var body = Visit(node.Body);
 
             return CSharpStmtFactory("Lock", argument, body);
+        }
+
+        private BoundExpression VisitThrow(BoundThrowStatement node)
+        {
+            var expr = node.ExpressionOpt;
+
+            if (expr != null)
+            {
+                var expression = Visit(expr);
+                return CSharpStmtFactory("Throw", expression);
+            }
+            else
+            {
+                return CSharpStmtFactory("Rethrow");
+            }
         }
 
         private LambdaCompilationInfo CurrentLambdaInfo
