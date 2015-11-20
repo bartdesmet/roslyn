@@ -24,21 +24,25 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return node.Update(node.Locals, node.LocalFunctions, builder.ToImmutableAndFree());
             }
 
-            LocalSymbol? synthesizedLocal;
-            BoundStatement? prologue = _instrumenter.CreateBlockPrologue(node, out synthesizedLocal);
-            if (prologue != null)
-            {
-                builder.Insert(0, prologue);
-            }
-            else if (node == _rootStatement && _factory.TopLevelMethod is SynthesizedSimpleProgramEntryPointSymbol entryPoint)
-            {
-                builder.Insert(0, _factory.HiddenSequencePoint());
-            }
+            LocalSymbol? synthesizedLocal = null;
 
-            BoundStatement? epilogue = _instrumenter.CreateBlockEpilogue(node);
-            if (epilogue != null)
+            if (!_inExpressionLambda)
             {
-                builder.Add(epilogue);
+                BoundStatement? prologue = _instrumenter.CreateBlockPrologue(node, out synthesizedLocal);
+                if (prologue != null)
+                {
+                    builder.Insert(0, prologue);
+                }
+                else if (node == _rootStatement && _factory.TopLevelMethod is SynthesizedSimpleProgramEntryPointSymbol entryPoint)
+                {
+                    builder.Insert(0, _factory.HiddenSequencePoint());
+                }
+
+                BoundStatement? epilogue = _instrumenter.CreateBlockEpilogue(node);
+                if (epilogue != null)
+                {
+                    builder.Add(epilogue);
+                }
             }
 
             return new BoundBlock(node.Syntax, synthesizedLocal == null ? node.Locals : node.Locals.Add(synthesizedLocal), node.LocalFunctions, builder.ToImmutableAndFree(), node.HasErrors);
