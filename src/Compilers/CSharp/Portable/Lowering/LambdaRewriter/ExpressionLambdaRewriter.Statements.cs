@@ -89,9 +89,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitFor((BoundForStatement)node);
                 case BoundKind.ForEachStatement:
                     return VisitForEach((BoundForEachStatement)node);
+                */
                 case BoundKind.WhileStatement:
                     return VisitWhile((BoundWhileStatement)node);
-
+                /*
                 case BoundKind.LockStatement:
                     return VisitLock((BoundLockStatement)node);
 
@@ -107,11 +108,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitGoto((BoundGotoStatement)node);
                 case BoundKind.LabeledStatement:
                     return VisitLabeled((BoundLabeledStatement)node);
+                */
                 case BoundKind.BreakStatement:
                     return VisitBreak((BoundBreakStatement)node);
                 case BoundKind.ContinueStatement:
                     return VisitContinue((BoundContinueStatement)node);
-                */
 
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
@@ -348,6 +349,30 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ifElse != null ? CSharpStmtFactory("IfThenElse", condition, ifThen, ifElse) : CSharpStmtFactory("IfThen", condition, ifThen);
         }
 
+        private BoundExpression VisitWhile(BoundWhileStatement node)
+        {
+            var condition = Visit(node.Condition);
+
+            CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
+
+            var body = Visit(node.Body);
+
+            var loopInfo = CurrentLambdaInfo.PopLoop();
+
+            return CSharpStmtFactory("While", condition, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+        }
+
+        private BoundExpression VisitBreak(BoundBreakStatement node)
+        {
+            // TODO: break could refer to switch
+            return CSharpStmtFactory("Break", CurrentLambdaInfo.ClosestBreak);
+        }
+
+        private BoundExpression VisitContinue(BoundContinueStatement node)
+        {
+            return CSharpStmtFactory("Continue", CurrentLambdaInfo.ClosestLoopContinue);
+        }
+
         private LambdaCompilationInfo CurrentLambdaInfo
         {
             get { return _lambdas.Peek(); }
@@ -359,6 +384,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             private readonly ArrayBuilder<LocalSymbol> _locals;
             private readonly ArrayBuilder<BoundExpression> _initializers;
+            private readonly Stack<LoopInfo> _loops = new Stack<LoopInfo>();
 
             private BoundLocal _returnLabelTarget;
 
@@ -373,10 +399,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 if (_returnLabelTarget == null)
                 {
-                    var returnLabelTarget = _parent._bound.SynthesizedLocal(_parent.LabelTargetType);
-                    _locals.Add(returnLabelTarget);
-
-                    var returnLabelTargetLocal = _parent._bound.Local(returnLabelTarget);
+                    var returnLabelTarget = CreateLabelTargetLocalSymbol();
+                    var returnLabelTargetLocal = CreateLabelTargetLocal(returnLabelTarget);
                     _returnLabelTarget = returnLabelTargetLocal;
 
                     var returnLabelTargetCreation = default(BoundExpression);
@@ -390,7 +414,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         returnLabelTargetCreation = _parent.CSharpStmtFactory("Label", labelType);
                     }
 
-                    _initializers.Add(_parent._bound.AssignmentExpression(returnLabelTargetLocal, returnLabelTargetCreation));
+                    AddLabelInitializer(returnLabelTargetLocal, returnLabelTargetCreation);
                 }
 
                 return _returnLabelTarget;
@@ -412,6 +436,57 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 _initializers.Add(initializer);
             }
+
+            internal void PushLoop(LabelSymbol breakLabel, LabelSymbol continueLabel)
+            {
+                var breakLabelLocalSymbol = CreateLabelTargetLocalSymbol();
+                var breakLabelLocal = CreateLabelTargetLocal(breakLabelLocalSymbol);
+                AddLabelInitializer(breakLabelLocal, _parent.CSharpStmtFactory("Label"));
+
+                var continueLabelLocalSymbol = CreateLabelTargetLocalSymbol();
+                var continueLabelLocal = CreateLabelTargetLocal(continueLabelLocalSymbol);
+                AddLabelInitializer(continueLabelLocal, _parent.CSharpStmtFactory("Label"));
+
+                var loopInfo = new LoopInfo
+                {
+                    BreakLabel = breakLabelLocal,
+                    ContinueLabel = continueLabelLocal,
+                };
+
+                _loops.Push(loopInfo);
+            }
+
+            internal LoopInfo PopLoop()
+            {
+                return _loops.Pop();
+            }
+
+            // TODO: break could refer to switch; need to reconsider when adding switch support
+            internal BoundExpression ClosestBreak => _loops.Peek().BreakLabel;
+            internal BoundExpression ClosestLoopContinue => _loops.Peek().ContinueLabel;
+
+            private LocalSymbol CreateLabelTargetLocalSymbol()
+            {
+                var symbol = _parent._bound.SynthesizedLocal(_parent.LabelTargetType);
+                _locals.Add(symbol);
+                return symbol;
+            }
+
+            private BoundLocal CreateLabelTargetLocal(LocalSymbol symbol)
+            {
+                return _parent._bound.Local(symbol);
+            }
+
+            private void AddLabelInitializer(BoundLocal labelTargetLocal, BoundExpression labelTargetCreation)
+            {
+                _initializers.Add(_parent._bound.AssignmentExpression(labelTargetLocal, labelTargetCreation));
+            }
+        }
+
+        class LoopInfo
+        {
+            public BoundExpression BreakLabel { get; set; }
+            public BoundExpression ContinueLabel { get; set; }
         }
     }
 }

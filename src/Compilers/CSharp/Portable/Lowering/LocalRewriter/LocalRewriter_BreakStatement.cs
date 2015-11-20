@@ -12,6 +12,11 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitBreakStatement(BoundBreakStatement node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             BoundStatement result = new BoundGotoStatement(node.Syntax, node.Label, node.HasErrors);
             if (this.Instrument && !node.WasCompilerGenerated)
             {

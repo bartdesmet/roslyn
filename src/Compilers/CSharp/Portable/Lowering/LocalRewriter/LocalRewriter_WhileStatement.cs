@@ -21,6 +21,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             var rewrittenBody = VisitStatement(node.Body);
             Debug.Assert(rewrittenBody is { });
 
+            if (_inExpressionLambda)
+            {
+                return node.Update(rewrittenCondition, rewrittenBody, node.BreakLabel, node.ContinueLabel);
+            }
+
             // EnC: We need to insert a hidden sequence point to handle function remapping in case 
             // the containing method is edited while methods invoked in the condition are being executed.
             if (!node.WasCompilerGenerated && this.Instrument)
