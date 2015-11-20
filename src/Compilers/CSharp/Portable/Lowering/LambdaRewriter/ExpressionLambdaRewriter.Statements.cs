@@ -85,9 +85,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 */
                 case BoundKind.DoStatement:
                     return VisitDo((BoundDoStatement)node);
-                /*
                 case BoundKind.ForStatement:
                     return VisitFor((BoundForStatement)node);
+                /*
                 case BoundKind.ForEachStatement:
                     return VisitForEach((BoundForEachStatement)node);
                 */
@@ -318,20 +318,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitBlock(BoundBlock node, bool isTopLevel = false)
         {
-            var locals = ArrayBuilder<BoundExpression>.GetInstance();
-
-            foreach (var local in node.Locals)
-            {
-                var variable = _bound.SynthesizedLocal(ParameterExpressionType);
-                CurrentLambdaInfo.AddLocal(variable);
-                var localReference = _bound.Local(variable);
-                locals.Add(localReference);
-                var parameter = CSharpStmtFactory(
-                    "Variable",
-                    _bound.Typeof(_typeMap.SubstituteType(local.Type).Type), _bound.Literal(local.Name));
-                CurrentLambdaInfo.AddLocalInitializer(_bound.AssignmentExpression(localReference, parameter));
-                _localMap[local] = localReference;
-            }
+            var locals = PushLocals(node.Locals);
 
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
             foreach (var arg in node.Statements)
@@ -343,10 +330,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            foreach (var local in node.Locals)
-            {
-                _localMap.Remove(local);
-            }
+            PopLocals(node.Locals);
 
             if (isTopLevel)
             {
@@ -385,6 +369,34 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return res;
+        }
+
+        private ArrayBuilder<BoundExpression> PushLocals(ImmutableArray<LocalSymbol> locals)
+        {
+            var res = ArrayBuilder<BoundExpression>.GetInstance();
+
+            foreach (var local in locals)
+            {
+                var variable = _bound.SynthesizedLocal(ParameterExpressionType);
+                CurrentLambdaInfo.AddLocal(variable);
+                var localReference = _bound.Local(variable);
+                res.Add(localReference);
+                var parameter = CSharpStmtFactory(
+                    "Variable",
+                    _bound.Typeof(_typeMap.SubstituteType(local.Type).Type), _bound.Literal(local.Name));
+                CurrentLambdaInfo.AddLocalInitializer(_bound.AssignmentExpression(localReference, parameter));
+                _localMap[local] = localReference;
+            }
+
+            return res;
+        }
+
+        private void PopLocals(ImmutableArray<LocalSymbol> locals)
+        {
+            foreach (var local in locals)
+            {
+                _localMap.Remove(local);
+            }
         }
 
         private BoundExpression VisitReturn(BoundReturnStatement node)
@@ -440,6 +452,50 @@ namespace Microsoft.CodeAnalysis.CSharp
             var loopInfo = CurrentLambdaInfo.PopLoop();
 
             return CSharpStmtFactory("Do", body, condition, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+        }
+
+        private BoundExpression VisitFor(BoundForStatement node)
+        {
+            var locals = PushLocals(node.OuterLocals);
+
+            var initializers = VisitStatements(node.Initializer).ToImmutableArray();
+            var condition = Visit(node.Condition);
+            var increments = VisitStatements(node.Increment).ToImmutableArray();
+
+            CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
+
+            var body = Visit(node.Body);
+
+            var loopInfo = CurrentLambdaInfo.PopLoop();
+
+            PopLocals(node.OuterLocals);
+
+            var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
+            var initializer = _bound.Array(ExpressionType, initializers);
+            var increment = _bound.Array(ExpressionType, increments);
+
+            return CSharpStmtFactory("For", variables, initializer, condition ?? _bound.Null(ExpressionType), increment, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+        }
+
+        private IEnumerable<BoundExpression> VisitStatements(BoundStatement node)
+        {
+            if (node == null)
+            {
+                yield break;
+            }
+
+            switch (node.Kind)
+            {
+                case BoundKind.StatementList:
+                    foreach (var stmt in ((BoundStatementList)node).Statements)
+                    {
+                        yield return Visit(stmt);
+                    }
+                    break;
+                default:
+                    yield return Visit(node);
+                    break;
+            }
         }
 
         private BoundExpression VisitWhile(BoundWhileStatement node)

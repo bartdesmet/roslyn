@@ -72,13 +72,16 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundStatement InstrumentLocalDeclarationIfNecessary(BoundLocalDeclaration? originalOpt, LocalSymbol localSymbol, BoundStatement rewrittenLocalDeclaration)
         {
-            // Add sequence points, if necessary.
-            if (this.Instrument && originalOpt?.WasCompilerGenerated == false && !localSymbol.IsConst &&
-                (originalOpt.Syntax.Kind() == SyntaxKind.VariableDeclarator ||
-                    (originalOpt.Syntax.Kind() == SyntaxKind.LocalDeclarationStatement &&
-                        ((LocalDeclarationStatementSyntax)originalOpt.Syntax).Declaration.Variables.Count == 1)))
+            if (!_inExpressionLambda)
             {
-                rewrittenLocalDeclaration = _instrumenter.InstrumentLocalInitialization(originalOpt, rewrittenLocalDeclaration);
+                // Add sequence points, if necessary.
+                if (this.Instrument && originalOpt?.WasCompilerGenerated == false && !localSymbol.IsConst &&
+                    (originalOpt.Syntax.Kind() == SyntaxKind.VariableDeclarator ||
+                        (originalOpt.Syntax.Kind() == SyntaxKind.LocalDeclarationStatement &&
+                            ((LocalDeclarationStatementSyntax)originalOpt.Syntax).Declaration.Variables.Count == 1)))
+                {
+                    rewrittenLocalDeclaration = _instrumenter.InstrumentLocalInitialization(originalOpt, rewrittenLocalDeclaration);
+                }
             }
 
             return rewrittenLocalDeclaration;
