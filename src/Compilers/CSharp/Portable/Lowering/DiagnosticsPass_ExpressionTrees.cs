@@ -74,8 +74,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private bool? _hasCSharpExpression, _hasCSharpDynamic;
+        private bool? _hasCSharpExpression, _hasCSharpStatement, _hasCSharpDynamic;
         private bool HasCSharpExpression => IsDefined(ref _hasCSharpExpression, WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
+        private bool HasCSharpStatement => IsDefined(ref _hasCSharpStatement, WellKnownType.Microsoft_CSharp_Expressions_CSharpStatement);
         private bool HasCSharpDynamic => IsDefined(ref _hasCSharpDynamic, WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpExpression);
 
         private bool IsDefined(ref bool? field, WellKnownType type)
@@ -580,7 +581,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.Block)
                             {
-                                Error(ErrorCode.ERR_StatementLambdaToExpressionTree, node);
+                                if (!HasCSharpStatement)
+                                {
+                                    Error(ErrorCode.ERR_StatementLambdaToExpressionTree, node);
+                                }
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.RefExpression)
                             {
@@ -601,7 +605,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.Block)
                             {
-                                Error(ErrorCode.ERR_StatementLambdaToExpressionTree, node);
+                                if (!HasCSharpStatement)
+                                {
+                                    Error(ErrorCode.ERR_StatementLambdaToExpressionTree, node);
+                                }
                             }
                             else if (lambdaSyntax.Body.Kind() == SyntaxKind.RefExpression)
                             {

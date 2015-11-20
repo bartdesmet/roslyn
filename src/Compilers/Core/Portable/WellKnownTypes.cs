@@ -208,6 +208,7 @@ namespace Microsoft.CodeAnalysis
         System_Linq_Expressions_ElementInit,
         System_Linq_Expressions_MemberBinding,
         System_Linq_Expressions_ExpressionType,
+        System_Linq_Expressions_LabelTarget,
         System_Linq_IQueryable,
         System_Linq_IQueryable_T,
 
@@ -333,6 +334,7 @@ namespace Microsoft.CodeAnalysis
         Microsoft_CSharp_Expressions_ParameterAssignment,
         Microsoft_CSharp_Expressions_DynamicCSharpExpression,
         Microsoft_CSharp_Expressions_DynamicCSharpArgument,
+        Microsoft_CSharp_Expressions_CSharpStatement,
 
         NextAvailable,
         // Remember to update the AllWellKnownTypes tests when making changes here
@@ -536,6 +538,7 @@ namespace Microsoft.CodeAnalysis
             "System.Linq.Expressions.ElementInit",
             "System.Linq.Expressions.MemberBinding",
             "System.Linq.Expressions.ExpressionType",
+            "System.Linq.Expressions.LabelTarget",
             "System.Linq.IQueryable",
             "System.Linq.IQueryable`1",
 
@@ -658,6 +661,8 @@ namespace Microsoft.CodeAnalysis
 
             "Microsoft.CSharp.Expressions.DynamicCSharpExpression",
             "Microsoft.CSharp.Expressions.DynamicCSharpArgument",
+
+            "Microsoft.CSharp.Expressions.CSharpStatement",
         };
 
         private static readonly Dictionary<string, WellKnownType> s_nameToTypeIdMap = new Dictionary<string, WellKnownType>((int)Count);

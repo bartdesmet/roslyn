@@ -14,12 +14,13 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.CSharp
 {
-    internal class ExpressionLambdaRewriter // this is like a bound tree rewriter, but only handles a small subset of node kinds
+    internal partial class ExpressionLambdaRewriter // this is like a bound tree rewriter, but only handles a small subset of node kinds
     {
         private readonly SyntheticBoundNodeFactory _bound;
         private readonly TypeMap _typeMap;
         private readonly Dictionary<ParameterSymbol, BoundExpression> _parameterMap = new Dictionary<ParameterSymbol, BoundExpression>();
         private readonly bool _ignoreAccessibility;
+        private readonly Stack<LambdaCompilationInfo> _lambdas = new Stack<LambdaCompilationInfo>();
         private int _recursionDepth;
 
         private NamedTypeSymbol _ExpressionType;
@@ -151,38 +152,103 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression TranslateLambdaBody(BoundBlock block)
+        private BoundExpression TranslateLambdaBody(BoundBlock block, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
         {
-            Debug.Assert(block.Locals.IsEmpty);
-            foreach (var s in block.Statements)
+            // NB: Compat with prior versions of C# where we only supported expression-bodied lambdas.
+            if (block.Locals.IsEmpty)
             {
-                for (var stmt = s; stmt != null;)
+                var expressionLambda = true;
+
+                var stmts = block.Statements;
+                for (var i = 0; i < stmts.Length; i++)
                 {
-                    switch (stmt.Kind)
+                    for (var stmt = stmts[i]; stmt != null;)
                     {
-                        case BoundKind.ReturnStatement:
-                            var result = Visit(((BoundReturnStatement)stmt).ExpressionOpt);
-                            if (result != null)
-                            {
-                                return result;
-                            }
-                            stmt = null;
-                            break;
-                        case BoundKind.ExpressionStatement:
-                            return Visit(((BoundExpressionStatement)stmt).Expression);
-                        case BoundKind.SequencePoint:
-                            stmt = ((BoundSequencePoint)stmt).StatementOpt;
-                            break;
-                        case BoundKind.SequencePointWithSpan:
-                            stmt = ((BoundSequencePointWithSpan)stmt).StatementOpt;
-                            break;
-                        default:
-                            throw ExceptionUtilities.UnexpectedValue(stmt.Kind);
+                        switch (stmt.Kind)
+                        {
+                            case BoundKind.ReturnStatement:
+                                if (EnsureLastStatement(stmts, i))
+                                {
+                                    var result = Visit(((BoundReturnStatement)stmt).ExpressionOpt);
+                                    if (result != null)
+                                    {
+                                        return result;
+                                    }
+                                }
+                                else
+                                {
+                                    goto default;
+                                }
+                                stmt = null;
+                                break;
+                            case BoundKind.ExpressionStatement:
+                                if (EnsureLastStatement(stmts, i))
+                                {
+                                    return Visit(((BoundExpressionStatement)stmt).Expression);
+                                }
+                                goto default;
+                            case BoundKind.SequencePoint:
+                                stmt = ((BoundSequencePoint)stmt).StatementOpt;
+                                break;
+                            case BoundKind.SequencePointWithSpan:
+                                stmt = ((BoundSequencePointWithSpan)stmt).StatementOpt;
+                                break;
+                            default:
+                                expressionLambda = false;
+                                stmt = null;
+                                break;
+                        }
+                    }
+
+                    if (!expressionLambda)
+                    {
+                        break;
                     }
                 }
             }
 
-            return null;
+            var info = new LambdaCompilationInfo(this, locals, initializers);
+            _lambdas.Push(info);
+
+            var res = VisitBlock(block, isTopLevel: true);
+
+            _lambdas.Pop();
+
+            return res;
+        }
+
+        private bool EnsureLastStatement(ImmutableArray<BoundStatement> statements, int index)
+        {
+            for (var i = index + 1; i < statements.Length; i++)
+            {
+                var stmt = statements[i];
+
+                switch (stmt.Kind)
+                {
+                    case BoundKind.SequencePoint:
+                        if (((BoundSequencePoint)stmt).StatementOpt != null)
+                        {
+                            return false;
+                        }
+                        break;
+                    case BoundKind.SequencePointWithSpan:
+                        if (((BoundSequencePointWithSpan)stmt).StatementOpt != null)
+                        {
+                            return false;
+                        }
+                        break;
+                    case BoundKind.ReturnStatement:
+                        if (((BoundReturnStatement)stmt).ExpressionOpt != null)
+                        {
+                            return false;
+                        }
+                        break;
+                    default:
+                        return false;
+                }
+            }
+
+            return true;
         }
 
         private BoundExpression Visit(BoundExpression node)
@@ -284,12 +350,20 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.DefaultExpression:
                 case BoundKind.HostObjectMemberReference:
                 case BoundKind.Literal:
-                case BoundKind.Local:
                 case BoundKind.MethodInfo:
                 case BoundKind.PreviousSubmissionReference:
                 case BoundKind.ThisReference:
                 case BoundKind.TypeOfOperator:
                     return Constant(node);
+
+                case BoundKind.Local:
+                    return VisitLocal((BoundLocal)node);
+
+                case BoundKind.AssignmentOperator:
+                    return VisitAssignmentOperator((BoundAssignmentOperator)node);
+                case BoundKind.CompoundAssignmentOperator:
+                    return VisitCompoundAssignmentOperator((BoundCompoundAssignmentOperator)node);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -1100,7 +1174,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var underlyingDelegateTypeSymbol = ImmutableArray.Create<TypeSymbol>(underlyingDelegateType);
 
-            var body = TranslateLambdaBody(node.Body);
+            var body = TranslateLambdaBody(node.Body, locals, initializers);
 
             var parameterArray = _bound.ArrayOrEmpty(ParameterExpressionType, parameters.ToImmutableAndFree());
 
@@ -1508,6 +1582,18 @@ namespace Microsoft.CodeAnalysis.CSharp
                 "Constant",
                 _bound.Convert(_objectType, node),
                 _bound.Typeof(node.Type));
+        }
+
+        private BoundExpression VisitLocal(BoundLocal node)
+        {
+            if (node.ConstantValueOpt != null)
+            {
+                return Constant(node);
+            }
+            else
+            {
+                return _localMap[node.LocalSymbol];
+            }
         }
     }
 }
