@@ -214,6 +214,40 @@ namespace Microsoft.CodeAnalysis.CSharp
             throw new NotImplementedException();
         }
 
+        private BoundExpression VisitIncrementOperator(BoundIncrementOperator node)
+        {
+            var op = Visit(node.Operand);
+
+            var unaryOperatorName = default(string);
+            
+            switch (node.OperatorKind & UnaryOperatorKind.OpMask)
+            {
+                case UnaryOperatorKind.PostfixIncrement:
+                    unaryOperatorName = "PostIncrementAssign";
+                    break;
+                case UnaryOperatorKind.PostfixDecrement:
+                    unaryOperatorName = "PostDecrementAssign";
+                    break;
+                case UnaryOperatorKind.PrefixIncrement:
+                    unaryOperatorName = "PreIncrementAssign";
+                    break;
+                case UnaryOperatorKind.PrefixDecrement:
+                    unaryOperatorName = "PreDecrementAssign";
+                    break;
+                default:
+                    throw ExceptionUtilities.UnexpectedValue(node.OperatorKind);
+            }
+
+            if (node.MethodOpt != null)
+            {
+                return CSharpStmtFactory(unaryOperatorName, op, _bound.MethodInfo(node.MethodOpt));
+            }
+            else
+            {
+                return CSharpStmtFactory(unaryOperatorName, op);
+            }
+        }
+
         private BoundExpression VisitSequencePoint(BoundSequencePoint node)
         {
             return Visit(node.StatementOpt);

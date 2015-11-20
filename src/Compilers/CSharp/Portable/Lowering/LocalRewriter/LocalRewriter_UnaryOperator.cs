@@ -426,6 +426,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <returns>A bound sequence that uses a temp to achieve the correct side effects and return value.</returns>
         public override BoundNode VisitIncrementOperator(BoundIncrementOperator node)
         {
+            if (_inExpressionLambda)
+            {
+                var operand = VisitExpression(node.Operand);
+                return node.Update(node.OperatorKind, operand, node.MethodOpt, node.OperandConversion, node.ResultConversion, node.ResultKind, node.Type);
+            }
+
             bool isPrefix = IsPrefix(node);
             bool isDynamic = node.OperatorKind.IsDynamic();
             bool isChecked = node.OperatorKind.IsChecked();

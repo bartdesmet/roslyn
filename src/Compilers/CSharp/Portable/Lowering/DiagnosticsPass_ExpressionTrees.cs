@@ -257,10 +257,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             CheckForAssignmentToSelf(node);
 
-            if (_inExpressionLambda && node.Left.Kind != BoundKind.ObjectInitializerMember && node.Left.Kind != BoundKind.DynamicObjectInitializerMember)
-            {
-                Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
-            }
+            //if (_inExpressionLambda && node.Left.Kind != BoundKind.ObjectInitializerMember && node.Left.Kind != BoundKind.DynamicObjectInitializerMember)
+            //{
+            //    Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
+            //}
 
             return base.VisitAssignmentOperator(node);
         }
@@ -728,10 +728,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitIncrementOperator(BoundIncrementOperator node)
         {
-            if (_inExpressionLambda)
-            {
-                Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
-            }
+            //if (_inExpressionLambda)
+            //{
+            //    Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
+            //}
 
             return base.VisitIncrementOperator(node);
         }

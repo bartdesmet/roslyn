@@ -81,6 +81,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     break;
             }
 
+            if (_inExpressionLambda)
+            {
+                return node.Update(loweredLeft, loweredRight, node.RefKind, node.Type);
+            }
+
             return MakeStaticAssignmentOperator(node.Syntax, loweredLeft, loweredRight, node.IsRef, node.Type, used);
         }
 
