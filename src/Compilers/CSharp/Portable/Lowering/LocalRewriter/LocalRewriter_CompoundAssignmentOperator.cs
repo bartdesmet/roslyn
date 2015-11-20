@@ -23,6 +23,12 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert(TypeSymbol.Equals(node.Right.Type, node.Operator.RightType, TypeCompareKind.ConsiderEverything2));
             BoundExpression loweredRight = VisitExpression(node.Right);
 
+            if (_inExpressionLambda)
+            {
+                var loweredLeft = VisitExpression(node.Left);
+                return node.Update(node.Operator, loweredLeft, loweredRight, node.LeftConversion, node.FinalConversion, node.ResultKind, node.Type);
+            }
+
             var temps = ArrayBuilder<LocalSymbol>.GetInstance();
             var stores = ArrayBuilder<BoundExpression>.GetInstance();
 

@@ -295,10 +295,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             CheckForBitwiseOrSignExtend(node, node.Operator.Kind, left, node.Right);
             CheckLiftedCompoundAssignment(node);
 
-            if (_inExpressionLambda)
-            {
-                Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
-            }
+            //if (_inExpressionLambda)
+            //{
+            //    Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
+            //}
         }
 
         private void CheckRelationals(BoundBinaryOperator node)

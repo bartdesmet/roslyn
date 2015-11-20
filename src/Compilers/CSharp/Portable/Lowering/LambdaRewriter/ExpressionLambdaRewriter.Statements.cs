@@ -203,19 +203,64 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitCompoundAssignmentOperator(BoundCompoundAssignmentOperator node)
         {
-            var lhs = Visit(node.Left);
-            var rhs = Visit(node.Right);
-
-            // node.ExpressionSymbol contains the method
+            // TODO: check need for conversions
+            //
             // node.FinalConversion
-            // node.LeftConversion
-            // node.Operator
 
-            throw new NotImplementedException();
+            var left = Visit(node.Left);
+            var right = Visit(node.Right);
+
+            // TODO: check whether all lifting cases are properly supported by the ET API
+            bool isChecked, isLifted, requiresLifted;
+            string opName = GetBinaryOperatorAssignName(node.Operator.Kind, out isChecked, out isLifted, out requiresLifted);
+
+            var methodSymbol = node.Operator.Method;
+            var method = methodSymbol != null ? _bound.MethodInfo(methodSymbol) : _bound.Null(_bound.WellKnownType(WellKnownType.System_Reflection_MethodInfo));
+
+            if (node.LeftConversion.IsUserDefined)
+            {
+                TypeSymbol lambdaParamType = node.Left.Type.StrippedType();
+                return ExprFactory(opName, left, right, method, MakeConversionLambda(node.LeftConversion, lambdaParamType, node.Type));
+            }
+
+            return ExprFactory(opName, left, right, method);
+        }
+
+        private string GetBinaryOperatorAssignName(BinaryOperatorKind opKind, out bool isChecked, out bool isLifted, out bool requiresLifted)
+        {
+            isChecked = opKind.IsChecked();
+            isLifted = opKind.IsLifted();
+            requiresLifted = opKind.IsComparison();
+
+            if (opKind.IsLogical())
+            {
+                throw ExceptionUtilities.UnexpectedValue(opKind.Operator());
+            }
+
+            switch (opKind.Operator())
+            {
+                case BinaryOperatorKind.Addition: return isChecked ? "AddAssignChecked" : "AddAssign";
+                case BinaryOperatorKind.Multiplication: return isChecked ? "MultiplyAssignChecked" : "MultiplyAssign";
+                case BinaryOperatorKind.Subtraction: return isChecked ? "SubtractAssignChecked" : "SubtractAssign";
+                case BinaryOperatorKind.Division: return "DivideAssign";
+                case BinaryOperatorKind.Remainder: return "ModuloAssign";
+                case BinaryOperatorKind.Xor: return "ExclusiveOrAssign";
+                case BinaryOperatorKind.LeftShift: return "LeftShiftAssign";
+                case BinaryOperatorKind.RightShift: return "RightShiftAssign";
+                case BinaryOperatorKind.And: return "AndAssign";
+                case BinaryOperatorKind.Or: return "OrAssign";
+                default:
+                    throw ExceptionUtilities.UnexpectedValue(opKind.Operator());
+            }
         }
 
         private BoundExpression VisitIncrementOperator(BoundIncrementOperator node)
         {
+            // TODO: check need for conversions
+            //
+            // node.OperandConversion
+            // node.ResultConversion
+
             var op = Visit(node.Operand);
 
             var unaryOperatorName = default(string);
