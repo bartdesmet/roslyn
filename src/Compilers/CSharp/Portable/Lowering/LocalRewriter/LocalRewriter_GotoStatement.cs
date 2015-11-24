@@ -12,6 +12,21 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitGotoStatement(BoundGotoStatement node)
         {
+            if (_inExpressionLambda)
+            {
+                // NB: We need to suppress the quotation-centric rewrite for the case label because we're going to emit
+                //     the constant for the case label as an `object` rather than an `Expression` in the subsequent
+                //     rewrite phase in `ExpressionLambdaRewriter`.
+
+                _inExpressionLambda = false;
+
+                var caseExpression = VisitExpression(node.CaseExpressionOpt);
+
+                _inExpressionLambda = true;
+
+                return node.Update(node.Label, caseExpression, node.LabelExpressionOpt);
+            }
+
             // we are removing the label expressions from the bound tree because this expression is no longer needed
             // for the emit phase. It is even doing harm to e.g. the stack depth calculation because this expression
             // would not need to be pushed to the stack.
@@ -32,6 +47,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode? VisitLabel(BoundLabel node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             // we are removing the label expressions from the bound tree because this expression is no longer needed
             // for the emit phase. It is even doing harm to e.g. the stack depth calculation because this expression
             // would not need to be pushed to the stack.

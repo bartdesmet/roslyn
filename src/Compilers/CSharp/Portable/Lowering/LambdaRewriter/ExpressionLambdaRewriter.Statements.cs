@@ -88,6 +88,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.Block:
                     return VisitBlock((BoundBlock)node);
+                case BoundKind.StatementList:
+                    return VisitStatementList((BoundStatementList)node);
 
                 case BoundKind.ReturnStatement:
                     return VisitReturn((BoundReturnStatement)node);
@@ -126,12 +128,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitTry((BoundTryStatement)node);
                 case BoundKind.ThrowStatement:
                     return VisitThrow((BoundThrowStatement)node);
-                /*
                 case BoundKind.GotoStatement:
                     return VisitGoto((BoundGotoStatement)node);
-                case BoundKind.LabeledStatement:
-                    return VisitLabeled((BoundLabeledStatement)node);
-                */
+                case BoundKind.LabelStatement:
+                    return VisitLabel((BoundLabelStatement)node);
+
                 case BoundKind.BreakStatement:
                     return VisitBreak((BoundBreakStatement)node);
                 case BoundKind.ContinueStatement:
@@ -343,13 +344,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             var locals = PushLocals(node.Locals);
 
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
-            foreach (var arg in node.Statements)
+            foreach (var arg in Flatten(node.Statements))
             {
                 var stmt = Visit(arg);
-                if (stmt != null)
-                {
-                    builder.Add(stmt);
-                }
+                builder.Add(stmt);
             }
 
             PopLocals(node.Locals);
@@ -364,6 +362,67 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var variables = locals.Count > 0 ? _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree()) : null;
 
+            return ToBlock(builder, variables);
+        }
+
+        private IEnumerable<BoundStatement> Flatten(IEnumerable<BoundStatement> statements)
+        {
+            foreach (var stmt in statements)
+            {
+                foreach (var inner in GetStatements(stmt))
+                {
+                    if (inner != null)
+                    {
+                        yield return inner;
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<BoundStatement> GetStatements(BoundStatement statement)
+        {
+            if (statement != null)
+            {
+                if (statement.Kind == BoundKind.StatementList)
+                {
+                    // TODO: flatten without recursion
+                    foreach (var stmt in ((BoundStatementList)statement).Statements)
+                    {
+                        foreach (var inner in GetStatements(stmt))
+                        {
+                            if (inner != null)
+                            {
+                                yield return inner;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    yield return statement;
+                }
+            }
+        }
+
+        private BoundExpression VisitStatementList(BoundStatementList node)
+        {
+            return ToBlock(node.Statements);
+        }
+
+        private BoundExpression ToBlock(ImmutableArray<BoundStatement> expressions, BoundExpression variables = null)
+        {
+            var builder = ArrayBuilder<BoundExpression>.GetInstance();
+            foreach (var arg in Flatten(expressions))
+            {
+                var stmt = Visit(arg);
+                builder.Add(stmt);
+            }
+
+            return ToBlock(builder, variables);
+        }
+
+        private BoundExpression ToBlock(ArrayBuilder<BoundExpression> builder, BoundExpression variables = null)
+        {
             var res = default(BoundExpression);
 
             if (builder.Count > 0)
@@ -788,6 +847,30 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private BoundExpression VisitGoto(BoundGotoStatement node)
+        {
+            if (node.CaseExpressionOpt != null)
+            {
+                var @case = _bound.Convert(_objectType, node.CaseExpressionOpt);
+                return CSharpStmtFactory("GotoCase", @case);
+            }
+            else if (node.Label.Name == "default:") // TODO: come up with a better way to detect this case
+            {
+                return CSharpStmtFactory("GotoDefault");
+            }
+            else
+            {
+                var label = CurrentLambdaInfo.GetOrAddLabel(node.Label);
+                return CSharpStmtFactory("GotoLabel", label);
+            }
+        }
+
+        private BoundExpression VisitLabel(BoundLabelStatement node)
+        {
+            var label = CurrentLambdaInfo.GetOrAddLabel(node.Label);
+            return CSharpStmtFactory("Label", label);
+        }
+
         private LambdaCompilationInfo CurrentLambdaInfo
         {
             get { return _lambdas.Peek(); }
@@ -801,6 +884,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             private readonly ArrayBuilder<BoundExpression> _initializers;
             private readonly Stack<LoopInfo> _loops = new Stack<LoopInfo>();
             private readonly Stack<BreakInfo> _breaks = new Stack<BreakInfo>();
+            private readonly Dictionary<LabelSymbol, BoundLocal> _labels = new Dictionary<LabelSymbol, BoundLocal>();
 
             private BoundLocal _returnLabelTarget;
 
@@ -920,6 +1004,26 @@ namespace Microsoft.CodeAnalysis.CSharp
             private void AddLabelInitializer(BoundLocal labelTargetLocal, BoundExpression labelTargetCreation)
             {
                 _initializers.Add(_parent._bound.AssignmentExpression(labelTargetLocal, labelTargetCreation));
+            }
+
+            internal BoundLocal GetOrAddLabel(LabelSymbol label)
+            {
+                var labelLocal = default(BoundLocal);
+                if (!TryGetLabel(label, out labelLocal))
+                {
+                    var labelLocalSymbol = CreateLabelTargetLocalSymbol();
+                    labelLocal = CreateLabelTargetLocal(labelLocalSymbol);
+                    AddLabelInitializer(labelLocal, _parent.CSharpStmtFactory("Label", _parent._bound.Literal(label.Name)));
+
+                    _labels.Add(label, labelLocal);
+                }
+
+                return labelLocal;
+            }
+
+            internal bool TryGetLabel(LabelSymbol label, out BoundLocal target)
+            {
+                return _labels.TryGetValue(label, out target);
             }
         }
 
