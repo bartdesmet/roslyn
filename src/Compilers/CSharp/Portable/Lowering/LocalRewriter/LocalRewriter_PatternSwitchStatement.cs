@@ -15,6 +15,14 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitSwitchStatement(BoundSwitchStatement node)
         {
+            if (_inExpressionLambda)
+            {
+                var rewrittenExpression = (BoundExpression)Visit(node.BoundExpression);
+                var rewrittenSections = VisitList(node.SwitchSections);
+
+                return node.Update(rewrittenExpression, node.ConstantTargetOpt, node.InnerLocals, rewrittenSections, node.BreakLabel, node.StringEquality);
+            }
+
             return SwitchStatementLocalRewriter.Rewrite(this, node);
         }
 
