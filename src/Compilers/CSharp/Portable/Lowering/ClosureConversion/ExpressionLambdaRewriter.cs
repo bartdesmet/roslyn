@@ -210,7 +210,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var info = new LambdaCompilationInfo(this, locals, initializers);
             _lambdas.Push(info);
 
-            var res = VisitBlock(block, isTopLevel: true);
+            var res = VisitLambdaBody(block);
 
             _lambdas.Pop();
 

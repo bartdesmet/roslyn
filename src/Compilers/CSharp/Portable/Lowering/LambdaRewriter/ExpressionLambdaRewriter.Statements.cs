@@ -117,7 +117,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitForEach((BoundForEachStatement)node);
                 case BoundKind.WhileStatement:
                     return VisitWhile((BoundWhileStatement)node);
-                
+
                 case BoundKind.LockStatement:
                     return VisitLock((BoundLockStatement)node);
 
@@ -288,7 +288,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var op = Visit(node.Operand);
 
             var unaryOperatorName = default(string);
-            
+
             switch (node.OperatorKind & UnaryOperatorKind.OpMask)
             {
                 case UnaryOperatorKind.PostfixIncrement:
@@ -339,69 +339,53 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private readonly Dictionary<LocalSymbol, BoundExpression> _localMap = new Dictionary<LocalSymbol, BoundExpression>();
 
+        private BoundExpression VisitLambdaBody(BoundBlock node)
+        {
+            return VisitBlock(node, isTopLevel: true);
+        }
+
         private BoundExpression VisitBlock(BoundBlock node, bool isTopLevel = false)
         {
             var locals = PushLocals(node.Locals);
 
+            var lastStmt = default(BoundStatement);
+
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
-            foreach (var arg in Flatten(node.Statements))
+            foreach (var stmt in Flatten(node.Statements))
             {
-                var stmt = Visit(arg);
-                builder.Add(stmt);
+                var expr = Visit(stmt);
+                builder.Add(expr);
+
+                lastStmt = stmt;
             }
 
             PopLocals(node.Locals);
 
+            var returnLabel = default(BoundLocal);
+
             if (isTopLevel)
             {
-                if (CurrentLambdaInfo.HasReturnLabel)
+                if (lastStmt?.Kind == BoundKind.ReturnStatement)
                 {
-                    builder.Add(CurrentLambdaInfo.GetReturnLabelDeclaration());
+                    var lastReturn = (BoundReturnStatement)lastStmt;
+                    if (lastReturn.WasCompilerGenerated)
+                    {
+                        builder.RemoveLast();
+
+                        if (lastReturn.ExpressionOpt != null)
+                        {
+                            var expr = Visit(lastReturn.ExpressionOpt);
+                            builder.Add(expr);
+                        }
+                    }
                 }
+
+                returnLabel = CurrentLambdaInfo.ReturnLabel;
             }
 
             var variables = locals.Count > 0 ? _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree()) : null;
 
-            return ToBlock(builder, variables);
-        }
-
-        private IEnumerable<BoundStatement> Flatten(IEnumerable<BoundStatement> statements)
-        {
-            foreach (var stmt in statements)
-            {
-                foreach (var inner in GetStatements(stmt))
-                {
-                    if (inner != null)
-                    {
-                        yield return inner;
-                    }
-                }
-            }
-        }
-
-        private IEnumerable<BoundStatement> GetStatements(BoundStatement statement)
-        {
-            if (statement != null)
-            {
-                if (statement.Kind == BoundKind.StatementList)
-                {
-                    // TODO: flatten without recursion
-                    foreach (var stmt in ((BoundStatementList)statement).Statements)
-                    {
-                        foreach (var inner in GetStatements(stmt))
-                        {
-                            if (inner != null)
-                            {
-                                yield return inner;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    yield return statement;
-                }
-            }
+            return ToBlock(builder, variables, returnLabel);
         }
 
         private BoundExpression VisitStatementList(BoundStatementList node)
@@ -421,35 +405,109 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ToBlock(builder, variables);
         }
 
-        private BoundExpression ToBlock(ArrayBuilder<BoundExpression> builder, BoundExpression variables = null)
+        private BoundExpression ToBlock(ArrayBuilder<BoundExpression> builder, BoundExpression variables = null, BoundLocal returnLabel = null)
         {
             var res = default(BoundExpression);
 
-            if (builder.Count > 0)
+            if (returnLabel != null)
             {
                 var statements = _bound.Array(ExpressionType, builder.ToImmutableAndFree());
 
                 if (variables != null)
                 {
-                    res = CSharpStmtFactory("Block", variables, statements);
+                    res = CSharpStmtFactory("Block", variables, statements, returnLabel);
                 }
                 else
                 {
-                    res = CSharpStmtFactory("Block", statements);
+                    res = CSharpStmtFactory("Block", statements, returnLabel);
                 }
             }
             else
             {
-                // NB: Expression factory doesn't support empty blocks; we could shadow Block in the C# expression library.
-                res = CSharpStmtFactory("Empty");
-
-                if (variables != null)
+                if (builder.Count > 0)
                 {
-                    res = CSharpStmtFactory("Block", variables, res);
+                    var statements = _bound.Array(ExpressionType, builder.ToImmutableAndFree());
+
+                    if (variables != null)
+                    {
+                        res = CSharpStmtFactory("Block", variables, statements);
+                    }
+                    else
+                    {
+                        res = CSharpStmtFactory("Block", statements);
+                    }
+                }
+                else
+                {
+                    res = CSharpStmtFactory("Empty");
+
+                    if (variables != null)
+                    {
+                        res = CSharpStmtFactory("Block", variables, res);
+                    }
                 }
             }
 
             return res;
+        }
+
+        private IEnumerable<BoundStatement> Flatten(IEnumerable<BoundStatement> statements)
+        {
+            foreach (var stmt in statements)
+            {
+                foreach (var inner in GetStatements(stmt))
+                {
+                    if (inner != null)
+                    {
+                        yield return inner;
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<BoundStatement> GetStatements(BoundStatement statement)
+        {
+            // TODO: flatten without recursion
+            if (statement != null)
+            {
+                switch (statement.Kind)
+                {
+                    case BoundKind.StatementList:
+                        {
+                            foreach (var stmt in ((BoundStatementList)statement).Statements)
+                            {
+                                foreach (var inner in GetStatements(stmt))
+                                {
+                                    yield return inner;
+                                }
+                            }
+                        }
+                        break;
+                    case BoundKind.SequencePointWithSpan:
+                        {
+                            var seq = (BoundSequencePointWithSpan)statement;
+                            foreach (var inner in GetStatements(seq.StatementOpt))
+                            {
+                                yield return inner;
+                            }
+                        }
+                        break;
+                    case BoundKind.SequencePoint:
+                        {
+                            var seq = (BoundSequencePoint)statement;
+                            foreach (var inner in GetStatements(seq.StatementOpt))
+                            {
+                                yield return inner;
+                            }
+                        }
+                        break;
+                    default:
+                        {
+                            yield return statement;
+                        }
+                        break;
+                }
+            }
         }
 
         private ArrayBuilder<BoundExpression> PushLocals(ImmutableArray<LocalSymbol> locals)
@@ -922,10 +980,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             public bool HasReturnLabel => _returnLabelTarget != null;
 
-            public BoundExpression GetReturnLabelDeclaration()
-            {
-                return _parent.CSharpStmtFactory("Label", _returnLabelTarget);
-            }
+            public BoundLocal ReturnLabel => _returnLabelTarget;
 
             internal void AddLocal(LocalSymbol local)
             {
