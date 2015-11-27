@@ -152,7 +152,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-
         private BoundExpression TranslateLambdaBodyCore(BoundNode node, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
         {
             var info = new LambdaCompilationInfo(this, locals, initializers);
