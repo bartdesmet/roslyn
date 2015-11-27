@@ -50,16 +50,29 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private NamedTypeSymbol _CSharpCSharpSwitchCaseType;
+        private NamedTypeSymbol _CSharpSwitchCaseType;
         private NamedTypeSymbol CSharpSwitchCaseType
         {
             get
             {
-                if ((object)_CSharpCSharpSwitchCaseType == null)
+                if ((object)_CSharpSwitchCaseType == null)
                 {
-                    _CSharpCSharpSwitchCaseType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
+                    _CSharpSwitchCaseType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
                 }
-                return _CSharpCSharpSwitchCaseType;
+                return _CSharpSwitchCaseType;
+            }
+        }
+
+        private NamedTypeSymbol _CSharpConditionalReceiverType;
+        private NamedTypeSymbol ConditionalReceiverType
+        {
+            get
+            {
+                if ((object)_CSharpConditionalReceiverType == null)
+                {
+                    _CSharpConditionalReceiverType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ConditionalReceiver);
+                }
+                return _CSharpConditionalReceiverType;
             }
         }
 
@@ -943,7 +956,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             private readonly Stack<LoopInfo> _loops = new Stack<LoopInfo>();
             private readonly Stack<BreakInfo> _breaks = new Stack<BreakInfo>();
             private readonly Dictionary<LabelSymbol, BoundLocal> _labels = new Dictionary<LabelSymbol, BoundLocal>();
-
+            private readonly Stack<BoundLocal> _receivers = new Stack<BoundLocal>();
+            
             private BoundLocal _returnLabelTarget;
 
             public LambdaCompilationInfo(ExpressionLambdaRewriter parent, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
@@ -1079,6 +1093,27 @@ namespace Microsoft.CodeAnalysis.CSharp
             internal bool TryGetLabel(LabelSymbol label, out BoundLocal target)
             {
                 return _labels.TryGetValue(label, out target);
+            }
+
+            internal BoundLocal PushConditionalReceiver(BoundConditionalReceiver node)
+            {
+                var symbol = _parent._bound.SynthesizedLocal(_parent.ConditionalReceiverType);
+                _locals.Add(symbol);
+
+                var receiverLocal = _parent._bound.Local(symbol);
+                _receivers.Push(receiverLocal);
+
+                var receiverType = _parent._bound.Typeof(_parent._typeMap.SubstituteType(node.Type).Type);
+                var receiverCreation = _parent.CSharpStmtFactory("ConditionalReceiver", receiverType);
+
+                _initializers.Add(_parent._bound.AssignmentExpression(receiverLocal, receiverCreation));
+
+                return receiverLocal;
+            }
+
+            internal BoundLocal PopConditionalReceiver()
+            {
+                return _receivers.Pop();
             }
         }
 

@@ -152,6 +152,29 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+
+        private BoundExpression TranslateLambdaBody(BoundNode node, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
+        {
+            var info = new LambdaCompilationInfo(this, locals, initializers);
+            _lambdas.Push(info);
+
+            try
+            {
+                if (node is BoundBlock block)
+                {
+                    return VisitLambdaBody(block);
+                }
+                else
+                {
+                    return Visit((BoundExpression)node);
+                }
+            }
+            finally
+            {
+                _lambdas.Pop();
+            }
+        }
+
         private BoundExpression TranslateLambdaBody(BoundBlock block, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
         {
             // NB: Compat with prior versions of C# where we only supported expression-bodied lambdas.
@@ -169,7 +192,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                             case BoundKind.ReturnStatement:
                                 if (EnsureLastStatement(stmts, i))
                                 {
-                                    var result = Visit(((BoundReturnStatement)stmt).ExpressionOpt);
+                                    var result = TranslateLambdaBody(((BoundReturnStatement)stmt).ExpressionOpt, locals, initializers);
                                     if (result != null)
                                     {
                                         return result;
@@ -207,12 +230,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            var info = new LambdaCompilationInfo(this, locals, initializers);
-            _lambdas.Push(info);
-
-            var res = VisitLambdaBody(block);
-
-            _lambdas.Pop();
+            var res = TranslateLambdaBody(block, locals, initializers);
 
             return res;
         }
@@ -291,6 +309,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitCall((BoundCall)node);
                 case BoundKind.ConditionalAccess:
                     return VisitConditionalAccess((BoundConditionalAccess)node);
+                case BoundKind.ConditionalReceiver:
+                    return VisitConditionalReceiver((BoundConditionalReceiver)node);
                 case BoundKind.ConditionalOperator:
                     return VisitConditionalOperator((BoundConditionalOperator)node);
                 case BoundKind.Conversion:
@@ -417,7 +437,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return VisitArrayAccess(Visit(node.Expression), node);
         }
 
-        private BoundExpression VisitArrayAccess(BoundExpression receiverOpt, BoundArrayAccess node, bool isConditional = false)
+        private BoundExpression VisitArrayAccess(BoundExpression receiverOpt, BoundArrayAccess node)
         {
             var array = receiverOpt;
             if (node.Indices.Length == 1)
@@ -428,11 +448,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     index = ConvertIndex(index, arg.Type, _int32Type);
                 }
-                return ExprFactory(isConditional ? "ConditionalArrayIndex" : "ArrayIndex", array, index);
+                return ExprFactory("ArrayIndex", array, index);
             }
             else
             {
-                return ExprFactory(isConditional ? "ConditionalArrayIndex" : "ArrayIndex", array, Indices(node.Indices));
+                return ExprFactory("ArrayIndex", array, Indices(node.Indices));
             }
         }
 
@@ -740,7 +760,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return VisitCall(receiver, node);
         }
 
-        private BoundExpression VisitCall(BoundExpression receiverOpt, BoundCall node, bool isConditional = false)
+        private BoundExpression VisitCall(BoundExpression receiverOpt, BoundCall node)
         {
             if (node.IsDelegateCall)
             {
@@ -748,7 +768,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     var method = node.Method;
                     return CSharpExprFactory(
-                        isConditional ? "ConditionalInvoke" : "Invoke",
+                        "Invoke",
                         receiverOpt,
                         ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
                 }
@@ -756,7 +776,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     // Generate Expression.Invoke(Receiver, arguments)
                     return ExprFactory(
-                        isConditional ? "ConditionalInvoke" : "Invoke",
+                        "Invoke",
                         receiverOpt,
                         Expressions(node.Arguments));
                 }
@@ -765,7 +785,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var method = node.Method;
                 return CSharpExprFactory(
-                    isConditional ? "ConditionalCall" : "Call",
+                    "Call",
                     method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
@@ -775,7 +795,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 // Generate Expression.Call(Receiver, Method, [typeArguments,] arguments)
                 var method = node.Method;
                 return ExprFactory(
-                    isConditional ? "ConditionalCall" : "Call",
+                    "Call",
                     method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     Expressions(node.Arguments));
@@ -808,49 +828,29 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitConditionalAccess(BoundConditionalAccess node)
         {
+            var receiver = VisitConditionalAccessReceiver(node);
+            var conditionalReceiver = default(BoundExpression);
+            var access = VisitConditionalAccessAccess(node, out conditionalReceiver);
+
+            return CSharpExprFactory("ConditionalAccess", receiver, conditionalReceiver, access);
+        }
+
+        private BoundExpression VisitConditionalAccessReceiver(BoundConditionalAccess node)
+        {
             var receiver = Visit(node.Receiver);
+            return receiver;
+        }
 
-            var conditionals = new Queue<BoundExpression>();
+        private BoundExpression VisitConditionalAccessAccess(BoundConditionalAccess node, out BoundExpression conditionalReceiver)
+        {
+            var receiver = Visit(node.AccessExpression);
+            conditionalReceiver = CurrentLambdaInfo.PopConditionalReceiver();
+            return receiver;
+        }
 
-            var conditional = node;
-
-            while (conditional.AccessExpression.Kind == BoundKind.ConditionalAccess)
-            {
-                conditional = (BoundConditionalAccess)conditional.AccessExpression;
-                conditionals.Enqueue(conditional.Receiver);
-            }
-
-            conditionals.Enqueue(conditional.AccessExpression);
-
-            var res = receiver;
-
-            while (conditionals.Count > 0)
-            {
-                var expr = conditionals.Dequeue();
-
-                switch (expr.Kind)
-                {
-                    case BoundKind.Call:
-                        res = VisitCall(res, (BoundCall)expr, isConditional: true);
-                        break;
-                    case BoundKind.ArrayAccess:
-                        res = VisitArrayAccess(res, (BoundArrayAccess)expr, isConditional: true);
-                        break;
-                    case BoundKind.IndexerAccess:
-                        res = VisitIndexerAccess(res, (BoundIndexerAccess)expr, isConditional: true);
-                        break;
-                    case BoundKind.FieldAccess:
-                        res = VisitFieldAccess(res, (BoundFieldAccess)expr, isConditional: true);
-                        break;
-                    case BoundKind.PropertyAccess:
-                        res = VisitPropertyAccess(res, (BoundPropertyAccess)expr, isConditional: true);
-                        break;
-                    default:
-                        throw ExceptionUtilities.UnexpectedValue(expr.Kind);
-                }
-            }
-
-            return res;
+        private BoundExpression VisitConditionalReceiver(BoundConditionalReceiver node)
+        {
+            return CurrentLambdaInfo.PushConditionalReceiver(node);
         }
 
         private BoundExpression VisitConditionalOperator(BoundConditionalOperator node)
@@ -1108,7 +1108,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return VisitFieldAccess(receiver, node);
         }
 
-        private BoundExpression VisitFieldAccess(BoundExpression receiverOpt, BoundFieldAccess node, bool isConditional = false)
+        private BoundExpression VisitFieldAccess(BoundExpression receiverOpt, BoundFieldAccess node)
         {
             var receiver = node.FieldSymbol.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             return ExprFactory(
@@ -1125,14 +1125,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             return VisitIndexerAccess(receiver, node);
         }
 
-        private BoundExpression VisitIndexerAccess(BoundExpression receiverOpt, BoundIndexerAccess node, bool isConditional = false)
+        private BoundExpression VisitIndexerAccess(BoundExpression receiverOpt, BoundIndexerAccess node)
         {
             var indexer = node.Indexer;
             var method = indexer.GetOwnOrInheritedGetMethod() ?? indexer.GetOwnOrInheritedSetMethod();
 
             var receiver = method.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             return CSharpExprFactory(
-                isConditional ? "ConditionalIndex" : "Index",
+                "Index",
                 receiver,
                 _bound.MethodInfo(method),
                 ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
@@ -1436,7 +1436,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return VisitPropertyAccess(receiver, node);
         }
 
-        private BoundExpression VisitPropertyAccess(BoundExpression receiverOpt, BoundPropertyAccess node, bool isConditional = false)
+        private BoundExpression VisitPropertyAccess(BoundExpression receiverOpt, BoundPropertyAccess node)
         {
             var receiver = node.PropertySymbol.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
             var getMethod = node.PropertySymbol.GetOwnOrInheritedGetMethod();
@@ -1458,7 +1458,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 receiver = this.Convert(receiver, getMethod.ReceiverType, isChecked: false);
             }
 
-            return ExprFactory(isConditional ? "ConditionalProperty" : "Property", receiver, _bound.MethodInfo(getMethod));
+            return ExprFactory("Property", receiver, _bound.MethodInfo(getMethod));
         }
 
         private static BoundExpression VisitSizeOfOperator(BoundSizeOfOperator node)
@@ -1516,21 +1516,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression ExprFactory(string name, params BoundExpression[] arguments)
         {
-            if (name.StartsWith("Conditional"))
-            {
-                return CSharpExprFactory(name, arguments);
-            }
-
             return _bound.StaticCall(ExpressionType, name, arguments);
         }
 
         private BoundExpression ExprFactory(string name, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
         {
-            if (name.StartsWith("Conditional"))
-            {
-                return CSharpExprFactory(name, typeArgs, arguments);
-            }
-
             return _bound.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, ExpressionType, name, typeArgs, arguments);
         }
 
