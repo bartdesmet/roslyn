@@ -1130,12 +1130,25 @@ namespace Microsoft.CodeAnalysis.CSharp
             var method = indexer.GetOwnOrInheritedGetMethod() ?? indexer.GetOwnOrInheritedSetMethod();
 
             var receiver = method.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
-            return CSharpExprFactory(
-                "Index",
-                receiver,
-                _bound.MethodInfo(method),
-                ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
-            );
+
+            if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+            {
+                return CSharpExprFactory(
+                    "Index",
+                    receiver,
+                    _bound.MethodInfo(method),
+                    ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
+                );
+            }
+            else
+            {
+                return CSharpExprFactory(
+                    "Index",
+                    receiver,
+                    _bound.MethodInfo(method),
+                    Expressions(node.Arguments)
+                );
+            }
         }
 
         private BoundExpression VisitIsOperator(BoundIsOperator node)
