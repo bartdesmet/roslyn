@@ -257,10 +257,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (node.LeftConversion.IsUserDefined)
             {
                 TypeSymbol lambdaParamType = node.Left.Type.StrippedType();
-                return ExprFactory(opName, left, right, method, MakeConversionLambda(node.LeftConversion, lambdaParamType, node.Type));
+                return CSharpExprFactory(opName, left, right, method, MakeConversionLambda(node.LeftConversion, lambdaParamType, node.Type));
             }
 
-            return ExprFactory(opName, left, right, method);
+            return CSharpExprFactory(opName, left, right, method);
         }
 
         private string GetBinaryOperatorAssignName(BinaryOperatorKind opKind, out bool isChecked, out bool isLifted, out bool requiresLifted)
@@ -298,6 +298,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             // node.OperandConversion
             // node.ResultConversion
 
+            var isChecked = node.OperatorKind.IsChecked();
+
             var op = Visit(node.Operand);
 
             var unaryOperatorName = default(string);
@@ -305,16 +307,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             switch (node.OperatorKind & UnaryOperatorKind.OpMask)
             {
                 case UnaryOperatorKind.PostfixIncrement:
-                    unaryOperatorName = "PostIncrementAssign";
+                    unaryOperatorName = isChecked ? "PostIncrementCheckedAssign" : "PostIncrementAssign";
                     break;
                 case UnaryOperatorKind.PostfixDecrement:
-                    unaryOperatorName = "PostDecrementAssign";
+                    unaryOperatorName = isChecked ? "PostDecrementCheckedAssign" : "PostDecrementAssign";
                     break;
                 case UnaryOperatorKind.PrefixIncrement:
-                    unaryOperatorName = "PreIncrementAssign";
+                    unaryOperatorName = isChecked ? "PreIncrementCheckedAssign" : "PreIncrementAssign";
                     break;
                 case UnaryOperatorKind.PrefixDecrement:
-                    unaryOperatorName = "PreDecrementAssign";
+                    unaryOperatorName = isChecked ? "PreDecrementCheckedAssign" : "PreDecrementAssign";
                     break;
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.OperatorKind);
@@ -322,11 +324,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (node.MethodOpt != null)
             {
-                return CSharpStmtFactory(unaryOperatorName, op, _bound.MethodInfo(node.MethodOpt));
+                return CSharpExprFactory(unaryOperatorName, op, _bound.MethodInfo(node.MethodOpt));
             }
             else
             {
-                return CSharpStmtFactory(unaryOperatorName, op);
+                return CSharpExprFactory(unaryOperatorName, op);
             }
         }
 
