@@ -431,14 +431,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
         {
-            if (_inExpressionLambda)
-            {
-                // TODO: Can we support the dynamic variant?
-                if (node.HasDynamicType())
-                {
-                    Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node); // TODO: refine error or lift restriction
-                }
-            }
+            //if (_inExpressionLambda)
+            //{
+            //    // TODO: Can we support the dynamic variant?
+            //    if (node.HasDynamicType())
+            //    {
+            //        Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node); // TODO: refine error or lift restriction
+            //    }
+            //}
 
             return base.VisitConditionalAccess(node);
         }
@@ -963,6 +963,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             return base.VisitIsPatternExpression(node);
         }
+
+        //public override BoundNode VisitAwaitExpression(BoundAwaitExpression node)
+        //{
+        //    if (_inExpressionLambda)
+        //    {
+        //        Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
+        //    }
+        //}
 
         public override BoundNode VisitConvertedTupleLiteral(BoundConvertedTupleLiteral node)
         {
