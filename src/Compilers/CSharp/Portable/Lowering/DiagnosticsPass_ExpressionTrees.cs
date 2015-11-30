@@ -257,10 +257,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             CheckForAssignmentToSelf(node);
 
-            //if (_inExpressionLambda && node.Left.Kind != BoundKind.ObjectInitializerMember && node.Left.Kind != BoundKind.DynamicObjectInitializerMember)
-            //{
-            //    Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
-            //}
+            if (_inExpressionLambda  && !HasCSharpExpression && node.Left.Kind != BoundKind.ObjectInitializerMember && node.Left.Kind != BoundKind.DynamicObjectInitializerMember)
+            {
+               Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
+            }
 
             return base.VisitAssignmentOperator(node);
         }
@@ -269,6 +269,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
+                // TODO: Can we support this?
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }
 
@@ -292,6 +293,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
+                // TODO: Can we support this?
                 Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
             }
 
@@ -333,6 +335,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else if ((object)propertyAccess != null && propertyAccess.IsIndexedProperty() && !propertyAccess.IsIndexer)
                 {
+                    // TODO: Can we support this?
                     Error(ErrorCode.ERR_ExpressionTreeContainsIndexedProperty, node);
                 }
                 else if (!HasCSharpExpression && hasDefaultArgument(arguments, defaultArguments))
@@ -345,6 +348,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else if (IsComCallWithRefOmitted(method, arguments, argumentRefKindsOpt))
                 {
+                    // TODO: Can we support this?
                     Error(ErrorCode.ERR_ComRefCallInExpressionTree, node);
                 }
                 else if (method.MethodKind == MethodKind.LocalFunction)
@@ -431,14 +435,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitConditionalAccess(BoundConditionalAccess node)
         {
-            //if (_inExpressionLambda)
-            //{
-            //    // TODO: Can we support the dynamic variant?
-            //    if (node.HasDynamicType())
-            //    {
-            //        Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node); // TODO: refine error or lift restriction
-            //    }
-            //}
+            if (_inExpressionLambda && !HasCSharpExpression)
+            {
+                Error(ErrorCode.ERR_NullPropagatingOpInExpressionTree, node);
+            }
 
             return base.VisitConditionalAccess(node);
         }
@@ -447,6 +447,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda && !node.Arguments.IsDefaultOrEmpty)
             {
+                // TODO: Can we support this?
                 Error(ErrorCode.ERR_DictionaryInitializerInExpressionTree, node);
             }
 
@@ -489,6 +490,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda && node.AddMethod.IsStatic)
             {
+                // TODO: Can we support this?
                 Error(ErrorCode.ERR_ExtensionCollectionElementInitializerInExpressionTree, node);
             }
 
@@ -728,10 +730,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitIncrementOperator(BoundIncrementOperator node)
         {
-            //if (_inExpressionLambda)
-            //{
-            //    Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
-            //}
+            if (_inExpressionLambda && !HasCSharpExpression)
+            {
+                Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
+            }
 
             return base.VisitIncrementOperator(node);
         }
@@ -873,6 +875,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda && (node.LeftOperand.IsLiteralNull() || node.LeftOperand.IsLiteralDefault()))
             {
+                // TODO: Investigate this restriction.
                 Error(ErrorCode.ERR_ExpressionTreeContainsBadCoalesce, node.LeftOperand);
             }
 
@@ -931,7 +934,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitDynamicCollectionElementInitializer(BoundDynamicCollectionElementInitializer node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpDynamic)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
             }
@@ -962,14 +965,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             return base.VisitIsPatternExpression(node);
         }
-
-        //public override BoundNode VisitAwaitExpression(BoundAwaitExpression node)
-        //{
-        //    if (_inExpressionLambda)
-        //    {
-        //        Error(ErrorCode.ERR_ExpressionTreeContainsDynamicOperation, node);
-        //    }
-        //}
 
         public override BoundNode VisitConvertedTupleLiteral(BoundConvertedTupleLiteral node)
         {
