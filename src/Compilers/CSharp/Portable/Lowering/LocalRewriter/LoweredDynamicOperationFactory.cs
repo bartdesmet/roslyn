@@ -356,7 +356,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (loweredReceiver.Kind == BoundKind.TypeExpression)
             {
                 receiverStaticType = _factory.Typeof(((BoundTypeExpression)loweredReceiver).Type);
-                loweredReceiver = null;
                 receiverRefKind = RefKind.None;
             }
             else

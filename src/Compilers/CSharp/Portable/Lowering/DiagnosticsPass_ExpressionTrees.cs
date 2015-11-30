@@ -889,7 +889,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitNullCoalescingAssignmentOperator(node);
         }
 
-
         public override BoundNode VisitDynamicInvocation(BoundDynamicInvocation node)
         {
             if (_inExpressionLambda)
