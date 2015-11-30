@@ -156,7 +156,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     ref argumentRefKindsOpt,
                     ref temps);
 
-                if (_inExpressionLambda && argumentNamesOpt.Length != 0)
+                if (_inExpressionLambda)
                 {
                     return oldNodeOpt != null ?
                         oldNodeOpt.Update(rewrittenReceiver, indexer, rewrittenArguments, argumentNamesOpt, argumentRefKindsOpt, expanded, argsToParamsOpt, oldNodeOpt.DefaultArguments, oldNodeOpt.OriginalIndexersOpt, type) :
