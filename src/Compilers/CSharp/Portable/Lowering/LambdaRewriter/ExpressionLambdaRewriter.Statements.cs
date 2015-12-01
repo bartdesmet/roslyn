@@ -240,10 +240,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitCompoundAssignmentOperator(BoundCompoundAssignmentOperator node)
         {
-            // TODO: check need for conversions
-            //
-            // node.FinalConversion
-
             var left = Visit(node.Left);
             var right = Visit(node.Right);
 
@@ -254,10 +250,29 @@ namespace Microsoft.CodeAnalysis.CSharp
             var methodSymbol = node.Operator.Method;
             var method = methodSymbol != null ? _bound.MethodInfo(methodSymbol) : _bound.Null(_bound.WellKnownType(WellKnownType.System_Reflection_MethodInfo));
 
+            var leftType = node.Left.Type;
+
+            var leftConversion = default(BoundExpression);
             if (node.LeftConversion.IsUserDefined)
             {
-                TypeSymbol lambdaParamType = node.Left.Type.StrippedType();
-                return CSharpExprFactory(opName, left, right, method, MakeConversionLambda(node.LeftConversion, lambdaParamType, node.Type));
+                leftType = node.LeftConversion.Method.ReturnType;
+                leftConversion = MakeConversionLambda(node.LeftConversion, leftType, leftType);
+            }
+
+            var finalConversion = default(BoundExpression);
+            if (node.FinalConversion.IsUserDefined)
+            {
+                var operationResultType = leftType; // TODO: check if this is the right type to use here
+                var resultType = node.FinalConversion.Method.ReturnType;
+                finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
+            }
+
+            if (leftConversion != null || finalConversion != null)
+            {
+                leftConversion = leftConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
+                finalConversion = finalConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
+
+                return CSharpExprFactory(opName, left, right, method, finalConversion, leftConversion);
             }
 
             return CSharpExprFactory(opName, left, right, method);

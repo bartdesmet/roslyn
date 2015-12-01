@@ -203,6 +203,7 @@ namespace Microsoft.CodeAnalysis
 
         System_Linq_Enumerable,
         System_Linq_Expressions_Expression,
+        System_Linq_Expressions_LambdaExpression,
         System_Linq_Expressions_Expression_T,
         System_Linq_Expressions_ParameterExpression,
         System_Linq_Expressions_ElementInit,
@@ -536,6 +537,7 @@ namespace Microsoft.CodeAnalysis
 
             "System.Linq.Enumerable",
             "System.Linq.Expressions.Expression",
+            "System.Linq.Expressions.LambdaExpression",
             "System.Linq.Expressions.Expression`1",
             "System.Linq.Expressions.ParameterExpression",
             "System.Linq.Expressions.ElementInit",
