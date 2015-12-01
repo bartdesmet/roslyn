@@ -130,8 +130,27 @@ namespace Microsoft.CodeAnalysis.CSharp
             return loweredStatement;
         }
 
+        private bool _inExpressionLambda;
+
+        public override BoundNode VisitConversion(BoundConversion node)
+        {
+            var rewrittenType = VisitType(node.Type);
+
+            bool wasInExpressionLambda = _inExpressionLambda;
+            _inExpressionLambda = _inExpressionLambda || (node.ConversionKind == ConversionKind.AnonymousFunction && !wasInExpressionLambda && rewrittenType.IsExpressionTree());
+            var rewrittenOperand = (BoundExpression)Visit(node.Operand);
+            _inExpressionLambda = wasInExpressionLambda;
+
+            return node.Update(rewrittenOperand, node.ConversionKind, node.ResultKind, node.IsBaseConversion, node.SymbolOpt, node.Checked, node.ExplicitCastInCode, node.IsExtensionMethod, node.IsArrayIndex, node.ConstantValueOpt, node.Type);
+        }
+
         public override BoundNode VisitTryStatement(BoundTryStatement node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             var tryStatementSyntax = node.Syntax;
             // If you add a syntax kind to the assertion below, please also ensure
             // that the scenario has been tested with Edit-and-Continue.
