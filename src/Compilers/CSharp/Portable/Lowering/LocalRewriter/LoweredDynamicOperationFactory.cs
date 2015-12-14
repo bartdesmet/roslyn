@@ -366,6 +366,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             // DESIGN: does runtime library have enough information without passing receiverRefKind?
 
+            // NB: we currently mimic GetReceiverRefKind in the runtime libary; if that's not enough, we
+            //     can change the signature of the factory to take in a dynamic argument, like this:
+
+            // var receiver = MakeDynamicArgumentExpression(loweredReceiver.Syntax, loweredReceiver, null, receiverRefKind);
+
             var args = MakeDynamicArgumentExpressions(loweredReceiver.Syntax, loweredArguments, argumentNames, refKinds);
 
             return new BoundQuotedDynamicCall(
@@ -623,6 +628,24 @@ namespace Microsoft.CodeAnalysis.CSharp
             return MakeDynamicOperation(binderConstruction, loweredReceiver, RefKind.None, loweredArguments, default(ImmutableArray<RefKind>), loweredRight, AssemblySymbol.DynamicType);
         }
 
+        internal BoundExpression MakeDynamicSetMemberExpression(
+            BoundExpression loweredReceiver,
+            string name)
+        {
+            // NB: checked and compound flags will be provided by the runtime library upon analyzing
+            //     the parent assignment node that involves the dynamic operand, so we don't need to
+            //     account for this in the quoted form.
+
+            return new BoundQuotedDynamicMemberAccess(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                _factory.Literal(name),
+                _factory.Literal((int)CSharpBinderFlags.None),
+                _factory.TypeofDynamicOperationContextType(),
+                DynamicTypeSymbol.Instance
+            );
+        }
+
         internal LoweredDynamicOperation MakeDynamicGetIndex(
             BoundExpression loweredReceiver,
             ImmutableArray<BoundExpression> loweredArguments,
@@ -704,6 +727,28 @@ namespace Microsoft.CodeAnalysis.CSharp
             }) : null;
 
             return MakeDynamicOperation(binderConstruction, loweredReceiver, loweredReceiverRefKind, loweredArguments, refKinds, loweredRight, resultType);
+        }
+
+        internal BoundExpression MakeDynamicSetIndexExpression(
+            BoundExpression loweredReceiver,
+            ImmutableArray<BoundExpression> loweredArguments,
+            ImmutableArray<string> argumentNames,
+            ImmutableArray<RefKind> refKinds)
+        {
+            // NB: checked and compound flags will be provided by the runtime library upon analyzing
+            //     the parent assignment node that involves the dynamic operand, so we don't need to
+            //     account for this in the quoted form.
+
+            var args = MakeDynamicArgumentExpressions(loweredReceiver.Syntax, loweredArguments, argumentNames, refKinds);
+
+            return new BoundQuotedDynamicIndexAccess(
+                loweredReceiver.Syntax,
+                loweredReceiver,
+                args,
+                _factory.Literal((int)CSharpBinderFlags.None),
+                _factory.TypeofDynamicOperationContextType(),
+                DynamicTypeSymbol.Instance
+            );
         }
 
         internal LoweredDynamicOperation MakeDynamicIsEventTest(string name, BoundExpression loweredReceiver)

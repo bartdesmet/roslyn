@@ -235,7 +235,18 @@ namespace Microsoft.CodeAnalysis.CSharp
             var lhs = Visit(node.Left);
             var rhs = Visit(node.Right);
 
-            return CSharpStmtFactory("Assign", lhs, rhs); // NB: use stmt factory to suppress when C# expression library is not referenced
+            if (node.Left.HasDynamicType() || node.Right.HasDynamicType())
+            {
+                // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
+                
+                // TODO: check need for dynamic convert nodes generated at compile time
+
+                return DynamicCSharpExprFactory("DynamicAssign", lhs, rhs);
+            }
+            else
+            {
+                return CSharpStmtFactory("Assign", lhs, rhs); // NB: use stmt factory to suppress when C# expression library is not referenced
+            }
         }
 
         private BoundExpression VisitCompoundAssignmentOperator(BoundCompoundAssignmentOperator node)
@@ -246,6 +257,21 @@ namespace Microsoft.CodeAnalysis.CSharp
             // TODO: check whether all lifting cases are properly supported by the ET API
             bool isChecked, isLifted, requiresLifted;
             string opName = GetBinaryOperatorAssignName(node.Operator.Kind, out isChecked, out isLifted, out requiresLifted);
+
+            bool isDynamic = node.Left.HasDynamicType() || node.Right.HasDynamicType();
+            if (isDynamic)
+            {
+                // NB: We don't have dynamic arguments or flags in this case, but the runtime library
+                //     can infer it all. For the flags, the expression node type encodes the checked
+                //     context flag as well as the compound nature. For the argument flags, the nature
+                //     of the operands can be used to infer UseCompileTimeType when the nodes are non-
+                //     dynamic in nature.
+
+                // DESIGN: Review the above; in particular for variables for which we don't have a
+                //         dynamic variant, we are not able to distinguish object from dynamic.
+
+                opName = "Dynamic" + opName;
+            }
 
             var methodSymbol = node.Operator.Method;
             var method = methodSymbol != null ? _bound.MethodInfo(methodSymbol) : _bound.Null(_bound.WellKnownType(WellKnownType.System_Reflection_MethodInfo));
@@ -267,15 +293,35 @@ namespace Microsoft.CodeAnalysis.CSharp
                 finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
             }
 
+            var args = default(BoundExpression[]);
+
             if (leftConversion != null || finalConversion != null)
             {
                 leftConversion = leftConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
                 finalConversion = finalConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
 
-                return CSharpExprFactory(opName, left, right, method, finalConversion, leftConversion);
+                args = new[] { left, right, method, finalConversion, leftConversion };
+            }
+            else
+            {
+                args = new[] { left, right, method };
             }
 
-            return CSharpExprFactory(opName, left, right, method);
+            if (isDynamic)
+            {
+                // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
+
+                // TODO: check whether we can have all conversions in this case; also check whether
+                //       we should create a final conversion lambda to pass to the factory in the case
+                //       where the LHS has a static type and the RHS has a dynamic type (or should/can
+                //       we infer all the required information in the runtime library?)
+
+                return DynamicCSharpExprFactory(opName, args);
+            }
+            else
+            {
+                return CSharpExprFactory(opName, args);
+            }
         }
 
         private string GetBinaryOperatorAssignName(BinaryOperatorKind opKind, out bool isChecked, out bool isLifted, out bool requiresLifted)
@@ -337,13 +383,41 @@ namespace Microsoft.CodeAnalysis.CSharp
                     throw ExceptionUtilities.UnexpectedValue(node.OperatorKind);
             }
 
+            bool isDynamic = node.Operand.HasDynamicType();
+            if (isDynamic)
+            {
+                // NB: We don't have dynamic arguments or flags in this case, but the runtime library
+                //     can infer it all. For the flags, the expression node type encodes the checked
+                //     context flag as well as the compound nature. For the argument flags, the nature
+                //     of the operands can be used to infer UseCompileTimeType when the nodes are non-
+                //     dynamic in nature.
+
+                // DESIGN: Review the above; in particular for variables for which we don't have a
+                //         dynamic variant, we are not able to distinguish object from dynamic.
+
+                unaryOperatorName = "Dynamic" + unaryOperatorName;
+            }
+
+            var args = default(BoundExpression[]);
+
             if (node.MethodOpt != null)
             {
-                return CSharpExprFactory(unaryOperatorName, op, _bound.MethodInfo(node.MethodOpt));
+                args = new[] { op, _bound.MethodInfo(node.MethodOpt) };
             }
             else
             {
-                return CSharpExprFactory(unaryOperatorName, op);
+                args = new[] { op };
+            }
+
+            if (isDynamic)
+            {
+                // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
+
+                return DynamicCSharpExprFactory(unaryOperatorName, args);
+            }
+            else
+            {
+                return CSharpExprFactory(unaryOperatorName, args);
             }
         }
 
@@ -974,7 +1048,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             private readonly Stack<BreakInfo> _breaks = new Stack<BreakInfo>();
             private readonly Dictionary<LabelSymbol, BoundLocal> _labels = new Dictionary<LabelSymbol, BoundLocal>();
             private readonly Stack<BoundLocal> _receivers = new Stack<BoundLocal>();
-            
+
             private BoundLocal _returnLabelTarget;
 
             public LambdaCompilationInfo(ExpressionLambdaRewriter parent, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
