@@ -271,55 +271,54 @@ namespace Microsoft.CodeAnalysis.CSharp
                 //         dynamic variant, we are not able to distinguish object from dynamic.
 
                 opName = "Dynamic" + opName;
-            }
 
-            var methodSymbol = node.Operator.Method;
-            var method = methodSymbol != null ? _bound.MethodInfo(methodSymbol) : _bound.Null(_bound.WellKnownType(WellKnownType.System_Reflection_MethodInfo));
+                // NB: Using dynamic factories to support disabling all dynamic operations in an expression tree
 
-            var leftType = node.Left.Type;
-
-            var leftConversion = default(BoundExpression);
-            if (node.LeftConversion.IsUserDefined)
-            {
-                leftType = node.LeftConversion.Method.ReturnType;
-                leftConversion = MakeConversionLambda(node.LeftConversion, leftType, leftType);
-            }
-
-            var finalConversion = default(BoundExpression);
-            if (node.FinalConversion.IsUserDefined)
-            {
-                var operationResultType = leftType; // TODO: check if this is the right type to use here
-                var resultType = node.FinalConversion.Method.ReturnType;
-                finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
-            }
-
-            var args = default(BoundExpression[]);
-
-            if (leftConversion != null || finalConversion != null)
-            {
-                leftConversion = leftConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
-                finalConversion = finalConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
-
-                args = new[] { left, right, method, finalConversion, leftConversion };
-            }
-            else
-            {
-                args = new[] { left, right, method };
-            }
-
-            if (isDynamic)
-            {
-                // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
-
-                // TODO: check whether we can have all conversions in this case; also check whether
+                // TODO: Check whether we can have any conversions in this case; also check whether
                 //       we should create a final conversion lambda to pass to the factory in the case
                 //       where the LHS has a static type and the RHS has a dynamic type (or should/can
-                //       we infer all the required information in the runtime library?)
+                //       we infer all the required information in the runtime library?).
 
-                return DynamicCSharpExprFactory(opName, args);
+                // TODO: Check whether we can safely ignore a method, if any.
+
+                return DynamicCSharpExprFactory(opName, left, right);
             }
             else
             {
+                var methodSymbol = node.Operator.Method;
+                var method = methodSymbol != null ? _bound.MethodInfo(methodSymbol) : _bound.Null(_bound.WellKnownType(WellKnownType.System_Reflection_MethodInfo));
+
+                var leftType = node.Left.Type;
+
+                var leftConversion = default(BoundExpression);
+                if (node.LeftConversion.IsUserDefined)
+                {
+                    leftType = node.LeftConversion.Method.ReturnType;
+                    leftConversion = MakeConversionLambda(node.LeftConversion, leftType, leftType);
+                }
+
+                var finalConversion = default(BoundExpression);
+                if (node.FinalConversion.IsUserDefined)
+                {
+                    var operationResultType = leftType; // TODO: check if this is the right type to use here
+                    var resultType = node.FinalConversion.Method.ReturnType;
+                    finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
+                }
+
+                var args = default(BoundExpression[]);
+
+                if (leftConversion != null || finalConversion != null)
+                {
+                    leftConversion = leftConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
+                    finalConversion = finalConversion ?? _bound.Null(_bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression));
+
+                    args = new[] { left, right, method, finalConversion, leftConversion };
+                }
+                else
+                {
+                    args = new[] { left, right, method };
+                }
+
                 return CSharpExprFactory(opName, args);
             }
         }
@@ -354,11 +353,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitIncrementOperator(BoundIncrementOperator node)
         {
-            // TODO: check need for conversions
-            //
-            // node.OperandConversion
-            // node.ResultConversion
-
             var isChecked = node.OperatorKind.IsChecked();
 
             var op = Visit(node.Operand);
@@ -396,27 +390,31 @@ namespace Microsoft.CodeAnalysis.CSharp
                 //         dynamic variant, we are not able to distinguish object from dynamic.
 
                 unaryOperatorName = "Dynamic" + unaryOperatorName;
-            }
 
-            var args = default(BoundExpression[]);
-
-            if (node.MethodOpt != null)
-            {
-                args = new[] { op, _bound.MethodInfo(node.MethodOpt) };
-            }
-            else
-            {
-                args = new[] { op };
-            }
-
-            if (isDynamic)
-            {
                 // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
 
-                return DynamicCSharpExprFactory(unaryOperatorName, args);
+                // TODO: Check whether we can safely ignore a method, if any.
+
+                return DynamicCSharpExprFactory(unaryOperatorName, op);
             }
             else
             {
+                // TODO: add support for conversions
+                //
+                // node.OperandConversion
+                // node.ResultConversion
+
+                var args = default(BoundExpression[]);
+
+                if (node.MethodOpt != null)
+                {
+                    args = new[] { op, _bound.MethodInfo(node.MethodOpt) };
+                }
+                else
+                {
+                    args = new[] { op };
+                }
+
                 return CSharpExprFactory(unaryOperatorName, args);
             }
         }
