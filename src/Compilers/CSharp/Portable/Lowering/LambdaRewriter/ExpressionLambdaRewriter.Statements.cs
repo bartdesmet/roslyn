@@ -362,16 +362,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             switch (node.OperatorKind & UnaryOperatorKind.OpMask)
             {
                 case UnaryOperatorKind.PostfixIncrement:
-                    unaryOperatorName = isChecked ? "PostIncrementCheckedAssign" : "PostIncrementAssign";
+                    unaryOperatorName = isChecked ? "PostIncrementAssignChecked" : "PostIncrementAssign";
                     break;
                 case UnaryOperatorKind.PostfixDecrement:
-                    unaryOperatorName = isChecked ? "PostDecrementCheckedAssign" : "PostDecrementAssign";
+                    unaryOperatorName = isChecked ? "PostDecrementAssignChecked" : "PostDecrementAssign";
                     break;
                 case UnaryOperatorKind.PrefixIncrement:
-                    unaryOperatorName = isChecked ? "PreIncrementCheckedAssign" : "PreIncrementAssign";
+                    unaryOperatorName = isChecked ? "PreIncrementAssignChecked" : "PreIncrementAssign";
                     break;
                 case UnaryOperatorKind.PrefixDecrement:
-                    unaryOperatorName = isChecked ? "PreDecrementCheckedAssign" : "PreDecrementAssign";
+                    unaryOperatorName = isChecked ? "PreDecrementAssignChecked" : "PreDecrementAssign";
                     break;
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.OperatorKind);
