@@ -206,7 +206,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                             case BoundKind.ExpressionStatement:
                                 if (EnsureLastStatement(stmts, i))
                                 {
-                                    return Visit(((BoundExpressionStatement)stmt).Expression);
+                                    return VisitExpressionStatement((BoundExpressionStatement)stmt);
                                 }
                                 goto default;
                             case BoundKind.SequencePoint:
@@ -554,11 +554,12 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ExprFactory("TypeAs", Visit(node.Operand), _bound.Typeof(node.Type));
         }
 
-        private BoundExpression VisitAwaitExpression(BoundAwaitExpression node)
+        private BoundExpression VisitAwaitExpression(BoundAwaitExpression node, bool resultDiscarded = false)
         {
             if (node.IsDynamic)
             {
-                return DynamicCSharpExprFactory("DynamicAwait", Visit(node.Expression));
+                // TODO: add type context for dynamic operations?
+                return DynamicCSharpExprFactory("DynamicAwait", Visit(node.Expression), _bound.Literal(resultDiscarded));
             }
             else
             {

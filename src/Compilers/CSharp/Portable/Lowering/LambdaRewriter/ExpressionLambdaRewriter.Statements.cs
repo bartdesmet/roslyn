@@ -660,6 +660,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitExpressionStatement(BoundExpressionStatement node)
         {
+            if (node.Expression.Kind == BoundKind.AwaitExpression)
+            {
+                return VisitAwaitExpression((BoundAwaitExpression)node.Expression, resultDiscarded: true);
+            }
+
             return Visit(node.Expression);
         }
 
