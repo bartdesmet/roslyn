@@ -188,6 +188,12 @@ namespace TestResources.NetFX
         private static string s_tupleAttributes_cs;
         public static string tupleattributes_cs => ResourceLoader.GetOrCreateResource(ref s_tupleAttributes_cs, "NetFX.ValueTuple.TupleElementNamesAttribute.cs");
     }
+
+    public static class CSharpExpressions
+    {
+        private static byte[] s_lib;
+        public static byte[] lib => ResourceLoader.GetOrCreateResource(ref s_lib, "NetFX.CSharpExpressions.Microsoft.CSharp.Expressions.dll");
+    }
 }
 
 namespace TestResources
