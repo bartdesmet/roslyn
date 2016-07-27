@@ -770,7 +770,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return CSharpExprFactory(
                         "Invoke",
                         receiverOpt,
-                        ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
+                        ParameterBindings(node.Arguments, method, node.ArgsToParamsOpt));
                 }
                 else
                 {
@@ -788,7 +788,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     "Call",
                     method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
-                    ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt));
+                    ParameterBindings(node.Arguments, method, node.ArgsToParamsOpt));
             }
             else
             {
@@ -802,28 +802,43 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression ParameterBindings(ImmutableArray<BoundExpression> arguments, MethodSymbol method, ImmutableArray<string> argumentNamesOpt)
+        private static bool HasNamedOrOptionalParameters(ImmutableArray<string> argumentNamesOpt, MethodSymbol method, ImmutableArray<BoundExpression> arguments)
+        {
+            // Checks whether we have any named arguments or missing arguments.
+            return !argumentNamesOpt.IsDefaultOrEmpty || method.ParameterCount != arguments.Length;
+        }
+
+
+        private BoundExpression ParameterBindings(ImmutableArray<BoundExpression> arguments, MethodSymbol method, ImmutableArray<int> argsToParamsOpt)
         {
             var parameters = method.GetParameters();
 
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
 
+            var argsToParamsCount = argsToParamsOpt.IsDefaultOrEmpty ? 0 : argsToParamsOpt.Length;
+
             for (var i = 0; i < arguments.Length; i++)
             {
                 var arg = arguments[i];
                 var par = parameters[i];
-                var name = argumentNamesOpt[i] ?? par.Name;
-                builder.Add(ParameterBinding(method, name, arg));
+                var idx = i;
+
+                if (i < argsToParamsCount)
+                {
+                    idx = argsToParamsOpt[i];
+                }
+
+                builder.Add(ParameterBinding(method, idx, arg));
             }
 
             return _bound.Array(CSharpParameterAssignmentType, builder.ToImmutableAndFree());
         }
 
-        private BoundExpression ParameterBinding(MethodSymbol method, string parameterName, BoundExpression argument)
+        private BoundExpression ParameterBinding(MethodSymbol method, int parameterIndex, BoundExpression argument)
         {
             var arg = Visit(argument);
 
-            return CSharpExprFactory("Bind", _bound.MethodInfo(method, useMethodBase: true), _bound.StringLiteral(parameterName), arg);
+            return CSharpExprFactory("Bind", _bound.MethodInfo(method, useMethodBase: true), _bound.Literal(parameterIndex), arg);
         }
 
         private BoundExpression VisitConditionalAccess(BoundConditionalAccess node)
@@ -1138,7 +1153,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     "Index",
                     receiver,
                     _bound.MethodInfo(method),
-                    ParameterBindings(node.Arguments, method, node.ArgumentNamesOpt)
+                    ParameterBindings(node.Arguments, method, node.ArgsToParamsOpt)
                 );
             }
             else
@@ -1415,7 +1430,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return CSharpExprFactory(
                         "New",
                         ctor,
-                        ParameterBindings(node.Arguments, constructor, node.ArgumentNamesOpt));
+                        ParameterBindings(node.Arguments, constructor, node.ArgsToParamsOpt));
                 }
                 else
                 {
