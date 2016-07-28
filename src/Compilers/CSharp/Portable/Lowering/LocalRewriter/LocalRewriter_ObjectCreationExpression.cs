@@ -78,7 +78,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     throw ExceptionUtilities.UnexpectedValue(temps.Length);
                 }
 
-                rewrittenObjectCreation = node.UpdateArgumentsAndInitializer(rewrittenArguments, argumentRefKindsOpt, MakeObjectCreationInitializerForExpressionTree(node.InitializerExpressionOpt), changeTypeOpt: node.Constructor.ContainingType, keepArgInfo: true);
+                var ctor = node.Constructor.TupleUnderlyingMethod ?? node.Constructor;
+                var type = node.Constructor.ContainingType.TupleUnderlyingType ?? node.Constructor.ContainingType;
+                var init = MakeObjectCreationInitializerForExpressionTree(node.InitializerExpressionOpt);
+
+                rewrittenObjectCreation = node.Update(ctor, rewrittenArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, node.Expanded, node.ArgsToParamsOpt, node.ConstantValueOpt, init, type);
 
                 if (node.Type.IsInterfaceType())
                 {
