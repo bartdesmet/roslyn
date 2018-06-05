@@ -388,6 +388,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.SequencePointExpression:
                     return Visit(((BoundSequencePointExpression)node).Expression);
 
+                case BoundKind.ThrowExpression:
+                    return VisitThrowExpression((BoundThrowExpression)node);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -1617,6 +1620,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 return _localMap[node.LocalSymbol];
             }
+        }
+
+        private BoundExpression VisitThrowExpression(BoundThrowExpression node)
+        {
+            var expr = node.Expression;
+
+            var expression = Visit(expr);
+            return CSharpStmtFactory("Throw", expression, _bound.Typeof(node.Type));
         }
     }
 }
