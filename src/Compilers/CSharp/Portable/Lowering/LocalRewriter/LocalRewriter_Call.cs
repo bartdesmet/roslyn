@@ -589,8 +589,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             //
             // If none of those are the case then we can just take an early out.
 
-            Debug.Assert(rewrittenArguments.All(arg => arg is not BoundDiscardExpression), "Discards should have been substituted by VisitArguments");
+            Debug.Assert(!_inExpressionLambda && rewrittenArguments.All(arg => arg is not BoundDiscardExpression), "Discards should have been substituted by VisitArguments");
             temps ??= ArrayBuilder<LocalSymbol>.GetInstance();
+
             ImmutableArray<ParameterSymbol> parameters = methodOrIndexer.GetParameters();
 
             if (CanSkipRewriting(rewrittenArguments, methodOrIndexer, expanded, argsToParamsOpt, invokedAsExtensionMethod, false, out var isComReceiver))

@@ -480,7 +480,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private void CheckDiscard(BoundDiscardExpression argument)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpExpression)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsDiscard, argument);
             }

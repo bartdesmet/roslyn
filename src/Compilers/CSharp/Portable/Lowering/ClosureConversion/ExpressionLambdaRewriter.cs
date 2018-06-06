@@ -391,6 +391,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.ThrowExpression:
                     return VisitThrowExpression((BoundThrowExpression)node);
 
+                case BoundKind.DiscardExpression:
+                    return VisitDiscardExpression((BoundDiscardExpression)node);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -1628,6 +1631,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var expression = Visit(expr);
             return CSharpStmtFactory("Throw", expression, _bound.Typeof(node.Type));
+        }
+
+        private BoundExpression VisitDiscardExpression(BoundDiscardExpression node)
+        {
+            return CSharpStmtFactory("Discard", _bound.Typeof(node.Type));
         }
     }
 }

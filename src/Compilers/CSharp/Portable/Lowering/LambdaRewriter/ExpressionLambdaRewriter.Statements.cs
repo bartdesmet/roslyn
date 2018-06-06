@@ -238,7 +238,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (node.Left.HasDynamicType() || node.Right.HasDynamicType())
             {
                 // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
-                
+
                 // TODO: check need for dynamic convert nodes generated at compile time
 
                 return DynamicCSharpExprFactory("DynamicAssign", lhs, rhs);
