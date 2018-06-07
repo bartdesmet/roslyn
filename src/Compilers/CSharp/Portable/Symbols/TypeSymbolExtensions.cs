@@ -444,8 +444,95 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                         }
                         break;
                 }
+
+                if (IsCustomExpressionType(type, out _))
+                {
+                    isGenericType = type.Arity == 1 && type.MangleName;
+                    return true;
+                }
             }
             isGenericType = false;
+            return false;
+        }
+
+        public static bool IsCustomExpressionType(this TypeSymbol _type, [NotNullWhen(true)] out NamedTypeSymbol? builderType)
+        {
+            Debug.Assert(_type is not null);
+
+            if (TryGetExpressionBuilder(_type, out var builderArg) && builderArg is NamedTypeSymbol _builderType)
+            {
+                // NB: For now, we only support expression types parameterized by a delegate type (similar to Expression<TDelegate>).
+
+                if (_type is NamedTypeSymbol type && type.Arity == 1)
+                {
+                    builderType = _builderType;
+                    return true;
+                }
+            }
+
+            builderType = null;
+            return false;
+        }
+
+        public static NamedTypeSymbol? GetCustomGenericExpressionType(this TypeSymbol builderType)
+        {
+            // Search for a static method that matches:
+            //
+            //   TExpression<TDelegate> TBuilder.Lambda<TDelegate>(...)
+            //
+            // and return the open TExpression<> generic type. Require that all generic Lambda methods return the same type.
+
+            NamedTypeSymbol? genericExpressionType = null;
+
+            const string methodName = "Lambda";
+            var members = builderType.GetMembers(methodName);
+            foreach (var member in members)
+            {
+                if (member.Kind != SymbolKind.Method)
+                {
+                    continue;
+                }
+                var method = (MethodSymbol)member;
+                if ((method.DeclaredAccessibility == Accessibility.Public) &&
+                    method.IsStatic &&
+                    method.IsGenericMethod &&
+                    method.Arity == 1 &&
+                    method.RefKind == RefKind.None &&
+                    method.ReturnType is NamedTypeSymbol returnType &&
+                    returnType.IsGenericType &&
+                    returnType.Arity == 1 &&
+                    method.TypeParameters[0].Equals(returnType.TypeParameters[0], TypeCompareKind.AllIgnoreOptions))
+                {
+                    var candidateGenericExpressionType = returnType.ConstructUnboundGenericType();
+
+                    if (genericExpressionType is null)
+                    {
+                        genericExpressionType = candidateGenericExpressionType;
+                    }
+                    else if (!candidateGenericExpressionType.Equals(genericExpressionType, TypeCompareKind.AllIgnoreOptions))
+                    {
+                        return null;
+                    }
+                }
+            }
+            return genericExpressionType;
+        }
+
+        private static bool TryGetExpressionBuilder(this TypeSymbol _type, [NotNullWhen(true)] out object? builderArgument)
+        {
+            // Find the ExpressionBuilder attribute.
+            foreach (var attr in _type.GetAttributes())
+            {
+                if (attr.IsTargetAttribute(_type, AttributeDescription.ExpressionBuilderAttribute)
+                    && attr.CommonConstructorArguments.Length == 1
+                    && attr.CommonConstructorArguments[0].Kind == TypedConstantKind.Type)
+                {
+                    builderArgument = attr.CommonConstructorArguments[0].ValueInternal!;
+                    return true;
+                }
+            }
+
+            builderArgument = null;
             return false;
         }
 

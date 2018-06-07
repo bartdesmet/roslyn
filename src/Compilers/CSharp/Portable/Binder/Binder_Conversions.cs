@@ -646,8 +646,20 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (source.Kind == BoundKind.UnboundLambda &&
                 destination.IsNonGenericExpressionType())
             {
-                delegateType = Compilation.GetWellKnownType(WellKnownType.System_Linq_Expressions_Expression_T).Construct(delegateType);
-                delegateType.AddUseSiteInfo(ref useSiteInfo);
+                if (destination.IsCustomExpressionType(out var builderType))
+                {
+                    var genericExpressionType = builderType.GetCustomGenericExpressionType();
+                    if (genericExpressionType is not null)
+                    {
+                        delegateType = genericExpressionType.Construct(delegateType);
+                        delegateType.AddUseSiteInfo(ref useSiteInfo);
+                    }
+                }
+                else
+                {
+                    delegateType = Compilation.GetWellKnownType(WellKnownType.System_Linq_Expressions_Expression_T).Construct(delegateType);
+                    delegateType.AddUseSiteInfo(ref useSiteInfo);
+                }
             }
 
             conversion = Conversions.ClassifyConversionFromExpression(source, delegateType, ref useSiteInfo);
