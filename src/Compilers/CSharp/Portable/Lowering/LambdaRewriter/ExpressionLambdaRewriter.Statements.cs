@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
+using Microsoft.CodeAnalysis.PooledObjects;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.CSharp
@@ -83,7 +84,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return null;
             }
 
-            CSharpSyntaxNode old = _bound.Syntax;
+            SyntaxNode old = _bound.Syntax;
             _bound.Syntax = node.Syntax;
             var result = VisitInternal(node);
             _bound.Syntax = old;
@@ -188,7 +189,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 return VisitStatementWithoutStackGuard(node);
             }
-            catch (Exception ex) when (StackGuard.IsInsufficientExecutionStackException(ex))
+            catch (InsufficientExecutionStackException ex)
             {
                 throw new BoundTreeVisitor.CancelledByStackGuardException(ex, node);
             }
@@ -689,9 +690,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitSwitch(BoundSwitchStatement node)
         {
-            var expression = Visit(node.BoundExpression);
+            var expression = Visit(node.Expression);
 
             CurrentLambdaInfo.PushBreak(node.BreakLabel);
+            CurrentLambdaInfo.PushSwitchDefaultLabel(node.DefaultLabel);
 
             var locals = PushLocals(node.InnerLocals);
 
@@ -699,20 +701,26 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             foreach (var section in node.SwitchSections)
             {
-                var switchLabels = section.BoundSwitchLabels.SelectAsArray(l =>
+                var switchLabels = section.SwitchLabels.SelectAsArray(l =>
                 {
-                    // REVIEW: Label, Pattern, WhenClause
+                    var label = CurrentLambdaInfo.GetOrAddLabel(l.Label); // REVIEW
+                    var labelExpr = CSharpStmtFactory("Label", label);
 
-                    if (l.ExpressionOpt == null)
+                    switch (l.Pattern)
                     {
-                        // default case
-                        return _bound.Property(CSharpExpressionType, "SwitchCaseDefaultValue");
-                    }
-                    else
-                    {
-                        return _bound.Convert(_objectType, l.ExpressionOpt);
+                        case BoundConstantPattern c:
+                            // TODO: c.ConvertedType
+                            return _bound.Convert(_objectType, c.Value);
+                        case BoundDiscardPattern _:
+                            // REVIEW: Takes the place of default for now; switch needs rework to support patterns
+                            return _bound.Property(WellKnownMember.Microsoft_CSharp_Expressions_CSharpExpression__SwitchCaseDefaultValue);
+                        default:
+                            // TODO: Other pattern types
+                            throw new NotImplementedException("TODO");
                     }
                 });
+
+                // TODO: section.Locals
 
                 var testValues = _bound.Array(_objectType, switchLabels);
 
@@ -724,6 +732,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var cases = _bound.Array(CSharpSwitchCaseType, caseList.ToImmutableAndFree());
 
+            CurrentLambdaInfo.PopSwitchDefaultLabel();
             var breakInfo = CurrentLambdaInfo.PopBreak();
 
             PopLocals(node.InnerLocals);
@@ -785,10 +794,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitForEach(BoundForEachStatement node)
         {
+            if (node.IterationVariables.Length > 1 || node.AwaitOpt != null || node.DeconstructionOpt != null)
+            {
+                throw new NotImplementedException("TODO");
+            }
+
             var expression = Visit(node.Expression);
 
-            var local = new[] { node.IterationVariable }.ToImmutableArray();
-            var locals = PushLocals(local);
+            var locals = PushLocals(node.IterationVariables);
 
             CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
 
@@ -796,18 +809,25 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var loopInfo = CurrentLambdaInfo.PopLoop();
 
-            var variable = locals.ToImmutableAndFree()[0];
-            PopLocals(local);
+            var variables = locals.ToImmutableAndFree();
+            PopLocals(node.IterationVariables);
+
+            // TODO
+            // node.AwaitOpt
+            // node.Checked
+            // node.DeconstructionOpt
+            // node.EnumeratorInfoOpt
+            // node.IterationErrorExpressionOpt
 
             if (node.EnumeratorInfoOpt != null && node.ElementConversion.IsUserDefined)
             {
                 TypeSymbol lambdaParamType = node.EnumeratorInfoOpt.ElementType;
                 var conversion = MakeConversionLambda(node.ElementConversion, lambdaParamType, node.IterationVariableType.Type);
-                return CSharpStmtFactory("ForEach", variable, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion);
+                return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion);
             }
 
             // TODO: add overloads that take in MethodInfo for GetEnumerator etc?
-            return CSharpStmtFactory("ForEach", variable, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+            return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
         }
 
         private IEnumerable<BoundExpression> VisitStatements(BoundStatement node)
@@ -954,18 +974,30 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             // TODO: check use of ExceptionSourceOpt
 
-            if (node.LocalOpt != null)
+            if (node.Locals.Length > 0)
             {
-                var local = new[] { node.LocalOpt }.ToImmutableArray();
-
-                var locals = PushLocals(local);
+                var locals = PushLocals(node.Locals);
 
                 var body = Visit(node.Body);
                 var filter = Visit(node.ExceptionFilterOpt);
 
-                var variable = locals.ToImmutableAndFree()[0];
+                if (node.ExceptionSourceOpt.Kind != BoundKind.Local)
+                {
+                    throw new NotImplementedException("TODO");
+                }
 
-                PopLocals(local);
+                var local = (BoundLocal)node.ExceptionSourceOpt;
+
+                if (local.LocalSymbol.DeclarationKind != LocalDeclarationKind.CatchVariable)
+                {
+                    throw new NotImplementedException("TODO");
+                }
+
+                var variable = locals.ToImmutableAndFree()[0]; // REVIEW
+
+                PopLocals(node.Locals);
+
+                // TODO: Add locals
 
                 if (filter != null)
                 {
@@ -1019,7 +1051,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var @case = _bound.Convert(_objectType, node.CaseExpressionOpt);
                 return CSharpStmtFactory("GotoCase", @case);
             }
-            else if (node.Label.Name == "default:") // TODO: come up with a better way to detect this case
+            else if (node.Label == CurrentLambdaInfo.ClosestSwitchDefaultLabel)
             {
                 return CSharpStmtFactory("GotoDefault");
             }
@@ -1049,8 +1081,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             private readonly ArrayBuilder<BoundExpression> _initializers;
             private readonly Stack<LoopInfo> _loops = new Stack<LoopInfo>();
             private readonly Stack<BreakInfo> _breaks = new Stack<BreakInfo>();
+            private readonly Stack<LabelSymbol> _defaultLabels = new Stack<LabelSymbol>();
             private readonly Dictionary<LabelSymbol, BoundLocal> _labels = new Dictionary<LabelSymbol, BoundLocal>();
-            private readonly Stack<BoundLocal> _receivers = new Stack<BoundLocal>();
+            private readonly Stack<ReceiverInfo> _receivers = new Stack<ReceiverInfo>();
 
             private BoundLocal _returnLabelTarget;
 
@@ -1070,7 +1103,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     _returnLabelTarget = returnLabelTargetLocal;
 
                     var returnLabelTargetCreation = default(BoundExpression);
-                    if (type == null || type.SpecialType == SpecialType.System_Void)
+                    if (type is null || type.SpecialType == SpecialType.System_Void)
                     {
                         returnLabelTargetCreation = _parent.CSharpStmtFactory("Label");
                     }
@@ -1149,8 +1182,21 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return _breaks.Pop();
             }
 
+            // TODO: Revamp switch and parameterize it by the label expression (rather than having "GotoDefault")
+
+            internal void PushSwitchDefaultLabel(BoundSwitchLabel defaultLabel)
+            {
+                _defaultLabels.Push(defaultLabel?.Label);
+            }
+
+            internal void PopSwitchDefaultLabel()
+            {
+                _defaultLabels.Pop();
+            }
+
             internal BoundExpression ClosestBreak => _breaks.Peek().BreakLabel;
             internal BoundExpression ClosestLoopContinue => _loops.Peek().ContinueLabel;
+            internal LabelSymbol ClosestSwitchDefaultLabel => _defaultLabels.Count > 0 ? _defaultLabels.Peek() : null;
 
             private LocalSymbol CreateLabelTargetLocalSymbol()
             {
@@ -1189,13 +1235,18 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return _labels.TryGetValue(label, out target);
             }
 
-            internal BoundLocal PushConditionalReceiver(BoundConditionalReceiver node)
+            internal void PushConditionalReceiver()
+            {
+                _receivers.Push(new ReceiverInfo());
+            }
+
+            internal BoundLocal BindConditionalReceiver(BoundConditionalReceiver node)
             {
                 var symbol = _parent._bound.SynthesizedLocal(_parent.ConditionalReceiverType);
                 _locals.Add(symbol);
 
                 var receiverLocal = _parent._bound.Local(symbol);
-                _receivers.Push(receiverLocal);
+                _receivers.Peek().Local = receiverLocal;
 
                 var receiverType = _parent._bound.Typeof(_parent._typeMap.SubstituteType(node.Type).Type);
                 var receiverCreation = _parent.CSharpStmtFactory("ConditionalReceiver", receiverType);
@@ -1207,7 +1258,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             internal BoundLocal PopConditionalReceiver()
             {
-                return _receivers.Pop();
+                return _receivers.Pop().Local;
             }
         }
 
@@ -1220,6 +1271,24 @@ namespace Microsoft.CodeAnalysis.CSharp
         class BreakInfo
         {
             public BoundExpression BreakLabel { get; set; }
+        }
+
+        class ReceiverInfo
+        {
+            public BoundLocal Local
+            {
+                get => _local ?? throw new InvalidOperationException(); // TODO
+
+                set
+                {
+                    if (_local != null)
+                        throw new InvalidOperationException(); // TODO
+
+                    _local = value;
+                }
+            }
+
+            private BoundLocal _local;
         }
     }
 }

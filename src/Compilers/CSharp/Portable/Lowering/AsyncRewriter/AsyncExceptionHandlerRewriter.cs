@@ -141,7 +141,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var rewrittenOperand = (BoundExpression)Visit(node.Operand);
             _inExpressionLambda = wasInExpressionLambda;
 
-            return node.Update(rewrittenOperand, node.ConversionKind, node.ResultKind, node.IsBaseConversion, node.SymbolOpt, node.Checked, node.ExplicitCastInCode, node.IsExtensionMethod, node.IsArrayIndex, node.ConstantValueOpt, node.Type);
+            return node.Update(rewrittenOperand, node.Conversion, node.IsBaseConversion, node.Checked, node.ExplicitCastInCode, node.ConstantValueOpt, node.ConversionGroupOpt, node.Type);
         }
 
         public override BoundNode VisitTryStatement(BoundTryStatement node)

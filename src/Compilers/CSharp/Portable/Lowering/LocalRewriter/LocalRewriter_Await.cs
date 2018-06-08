@@ -36,6 +36,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return rewrittenAwait;
             }
 
+            if (_inExpressionLambda)
+            {
+                return rewrittenAwait;
+            }
+
             // The await expression will be lowered to code that involves the use of side-effects
             // such as jumps and labels, which we can only emit with an empty stack, so we require
             // that the await expression itself is produced only when the stack is empty.

@@ -105,7 +105,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda)
             {
-                return node.Update(loweredLeft, loweredRight, node.RefKind, node.Type);
+                return node.Update(loweredLeft, loweredRight, node.IsRef, node.Type);
             }
 
             return MakeStaticAssignmentOperator(node.Syntax, loweredLeft, loweredRight, node.IsRef, node.Type, used);

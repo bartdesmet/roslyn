@@ -574,9 +574,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     // purposes of closure conversion
                     DeclareLocals(_currentScope, functionSymbol.Parameters, _inExpressionTree);
 
-                    var result = _inExpressionTree
-                        ? base.VisitBlock(body)
-                        : VisitBlock(body);
+                    //var result = _inExpressionTree
+                    //    ? base.VisitBlock(body)
+                    //    : VisitBlock(body);
+
+                    var result = VisitBlock(body);
 
                     PopScope(oldScope);
                     _currentFunction = oldFunction;
@@ -699,7 +701,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         CreateAndPushScope(node);
                     }
 
-                    DeclareLocals(_currentScope, locals);
+                    DeclareLocals(_currentScope, locals, _inExpressionTree);
                 }
 
                 /// <summary>

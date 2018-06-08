@@ -17,10 +17,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
-                var rewrittenExpression = (BoundExpression)Visit(node.BoundExpression);
+                var rewrittenExpression = (BoundExpression)Visit(node.Expression);
                 var rewrittenSections = VisitList(node.SwitchSections);
 
-                return node.Update(rewrittenExpression, node.ConstantTargetOpt, node.InnerLocals, rewrittenSections, node.BreakLabel, node.StringEquality);
+                return node.Update(rewrittenExpression, node.InnerLocals, node.InnerLocalFunctions, rewrittenSections, node.DecisionDag, node.DefaultLabel, node.BreakLabel);
             }
 
             return SwitchStatementLocalRewriter.Rewrite(this, node);

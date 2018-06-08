@@ -36,9 +36,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda)
             {
+                var rewrittenIterationErrorExpression = (BoundExpression)Visit(node.IterationErrorExpressionOpt); // REVIEW
                 var rewrittenExpression = (BoundExpression)Visit(node.Expression);
+                var rewrittenDeconstruction = (BoundForEachDeconstructStep)Visit(node.DeconstructionOpt); // REVIEW
                 var rewrittenBody = (BoundStatement)Visit(node.Body);
-                return node.Update(node.EnumeratorInfoOpt, node.ElementConversion, node.IterationVariableType, node.IterationVariable, rewrittenExpression, rewrittenBody, node.Checked, node.BreakLabel, node.ContinueLabel);
+
+                return node.Update(node.EnumeratorInfoOpt, node.ElementConversion, node.IterationVariableType, node.IterationVariables, rewrittenIterationErrorExpression, rewrittenExpression, rewrittenDeconstruction, node.AwaitOpt, rewrittenBody, node.Checked, node.BreakLabel, node.ContinueLabel);
             }
 
             BoundExpression collectionExpression = GetUnconvertedCollectionExpression(node, out _);

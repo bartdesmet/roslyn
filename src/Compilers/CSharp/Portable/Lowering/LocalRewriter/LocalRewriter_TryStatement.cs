@@ -96,7 +96,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda)
             {
-                return node.Update(node.LocalOpt, rewrittenExceptionSourceOpt, rewrittenExceptionTypeOpt, rewrittenFilter, rewrittenBody, node.IsSynthesizedAsyncCatchAll);
+                return node.Update(node.Locals, rewrittenExceptionSourceOpt, rewrittenExceptionTypeOpt, rewrittenFilter, rewrittenBody, node.IsSynthesizedAsyncCatchAll);
             }
 
             // EnC: We need to insert a hidden sequence point to handle function remapping in case 

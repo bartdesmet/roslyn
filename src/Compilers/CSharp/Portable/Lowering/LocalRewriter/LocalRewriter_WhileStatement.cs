@@ -23,7 +23,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda)
             {
-                return node.Update(rewrittenCondition, rewrittenBody, node.BreakLabel, node.ContinueLabel);
+                return node.Update(node.Locals, rewrittenCondition, rewrittenBody, node.BreakLabel, node.ContinueLabel);
             }
 
             // EnC: We need to insert a hidden sequence point to handle function remapping in case 

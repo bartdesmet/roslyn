@@ -215,6 +215,15 @@ namespace Microsoft.CodeAnalysis.CSharp
         InterpolatedStringHandlerPlaceholder,
         InterpolatedStringArgumentPlaceholder,
         StringInsert,
+        QuotedDynamicMemberAccess,
+        QuotedDynamicIndexAccess,
+        QuotedDynamicInvocation,
+        QuotedDynamicCall,
+        QuotedDynamicNew,
+        QuotedDynamicUnary,
+        QuotedDynamicBinary,
+        QuotedDynamicConvert,
+        QuotedDynamicArgument,
         IsPatternExpression,
         ConstantPattern,
         DiscardPattern,
@@ -7440,6 +7449,379 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
     }
 
+    internal sealed partial class BoundQuotedDynamicMemberAccess : BoundExpression
+    {
+        public BoundQuotedDynamicMemberAccess(SyntaxNode syntax, BoundExpression receiver, BoundExpression name, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicMemberAccess, syntax, type, hasErrors || receiver.HasErrors() || name.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(receiver is object, "Field 'receiver' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(name is object, "Field 'name' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Receiver = receiver;
+            this.Name = name;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression Receiver { get; }
+
+        public BoundExpression Name { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicMemberAccess(this);
+
+        public BoundQuotedDynamicMemberAccess Update(BoundExpression receiver, BoundExpression name, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (receiver != this.Receiver || name != this.Name || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicMemberAccess(this.Syntax, receiver, name, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicIndexAccess : BoundExpression
+    {
+        public BoundQuotedDynamicIndexAccess(SyntaxNode syntax, BoundExpression receiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicIndexAccess, syntax, type, hasErrors || receiver.HasErrors() || arguments.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(receiver is object, "Field 'receiver' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(!arguments.IsDefault, "Field 'arguments' cannot be null (use Null=\"allow\" in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Receiver = receiver;
+            this.Arguments = arguments;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression Receiver { get; }
+
+        public ImmutableArray<BoundQuotedDynamicArgument> Arguments { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicIndexAccess(this);
+
+        public BoundQuotedDynamicIndexAccess Update(BoundExpression receiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (receiver != this.Receiver || arguments != this.Arguments || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicIndexAccess(this.Syntax, receiver, arguments, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicInvocation : BoundExpression
+    {
+        public BoundQuotedDynamicInvocation(SyntaxNode syntax, BoundExpression receiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicInvocation, syntax, type, hasErrors || receiver.HasErrors() || arguments.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(receiver is object, "Field 'receiver' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(!arguments.IsDefault, "Field 'arguments' cannot be null (use Null=\"allow\" in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Receiver = receiver;
+            this.Arguments = arguments;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression Receiver { get; }
+
+        public ImmutableArray<BoundQuotedDynamicArgument> Arguments { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicInvocation(this);
+
+        public BoundQuotedDynamicInvocation Update(BoundExpression receiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (receiver != this.Receiver || arguments != this.Arguments || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicInvocation(this.Syntax, receiver, arguments, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicCall : BoundExpression
+    {
+        public BoundQuotedDynamicCall(SyntaxNode syntax, BoundExpression? receiver, BoundExpression? typeReceiver, BoundExpression name, BoundExpression typeArguments, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicCall, syntax, type, hasErrors || receiver.HasErrors() || typeReceiver.HasErrors() || name.HasErrors() || typeArguments.HasErrors() || arguments.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(name is object, "Field 'name' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(typeArguments is object, "Field 'typeArguments' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(!arguments.IsDefault, "Field 'arguments' cannot be null (use Null=\"allow\" in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Receiver = receiver;
+            this.TypeReceiver = typeReceiver;
+            this.Name = name;
+            this.TypeArguments = typeArguments;
+            this.Arguments = arguments;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression? Receiver { get; }
+
+        public BoundExpression? TypeReceiver { get; }
+
+        public BoundExpression Name { get; }
+
+        public BoundExpression TypeArguments { get; }
+
+        public ImmutableArray<BoundQuotedDynamicArgument> Arguments { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicCall(this);
+
+        public BoundQuotedDynamicCall Update(BoundExpression? receiver, BoundExpression? typeReceiver, BoundExpression name, BoundExpression typeArguments, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (receiver != this.Receiver || typeReceiver != this.TypeReceiver || name != this.Name || typeArguments != this.TypeArguments || arguments != this.Arguments || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicCall(this.Syntax, receiver, typeReceiver, name, typeArguments, arguments, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicNew : BoundExpression
+    {
+        public BoundQuotedDynamicNew(SyntaxNode syntax, BoundExpression typeReceiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicNew, syntax, type, hasErrors || typeReceiver.HasErrors() || arguments.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(typeReceiver is object, "Field 'typeReceiver' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(!arguments.IsDefault, "Field 'arguments' cannot be null (use Null=\"allow\" in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.TypeReceiver = typeReceiver;
+            this.Arguments = arguments;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression TypeReceiver { get; }
+
+        public ImmutableArray<BoundQuotedDynamicArgument> Arguments { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicNew(this);
+
+        public BoundQuotedDynamicNew Update(BoundExpression typeReceiver, ImmutableArray<BoundQuotedDynamicArgument> arguments, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (typeReceiver != this.TypeReceiver || arguments != this.Arguments || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicNew(this.Syntax, typeReceiver, arguments, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicUnary : BoundExpression
+    {
+        public BoundQuotedDynamicUnary(SyntaxNode syntax, BoundExpression expressionType, BoundQuotedDynamicArgument operand, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicUnary, syntax, type, hasErrors || expressionType.HasErrors() || operand.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(expressionType is object, "Field 'expressionType' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(operand is object, "Field 'operand' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.ExpressionType = expressionType;
+            this.Operand = operand;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression ExpressionType { get; }
+
+        public BoundQuotedDynamicArgument Operand { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicUnary(this);
+
+        public BoundQuotedDynamicUnary Update(BoundExpression expressionType, BoundQuotedDynamicArgument operand, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (expressionType != this.ExpressionType || operand != this.Operand || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicUnary(this.Syntax, expressionType, operand, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicBinary : BoundExpression
+    {
+        public BoundQuotedDynamicBinary(SyntaxNode syntax, BoundExpression expressionType, BoundQuotedDynamicArgument left, BoundQuotedDynamicArgument right, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicBinary, syntax, type, hasErrors || expressionType.HasErrors() || left.HasErrors() || right.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(expressionType is object, "Field 'expressionType' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(left is object, "Field 'left' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(right is object, "Field 'right' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.ExpressionType = expressionType;
+            this.Left = left;
+            this.Right = right;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression ExpressionType { get; }
+
+        public BoundQuotedDynamicArgument Left { get; }
+
+        public BoundQuotedDynamicArgument Right { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicBinary(this);
+
+        public BoundQuotedDynamicBinary Update(BoundExpression expressionType, BoundQuotedDynamicArgument left, BoundQuotedDynamicArgument right, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (expressionType != this.ExpressionType || left != this.Left || right != this.Right || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicBinary(this.Syntax, expressionType, left, right, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicConvert : BoundExpression
+    {
+        public BoundQuotedDynamicConvert(SyntaxNode syntax, BoundExpression operand, BoundExpression targetType, BoundExpression flags, BoundExpression context, TypeSymbol? type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicConvert, syntax, type, hasErrors || operand.HasErrors() || targetType.HasErrors() || flags.HasErrors() || context.HasErrors())
+        {
+
+            RoslynDebug.Assert(operand is object, "Field 'operand' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(targetType is object, "Field 'targetType' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(context is object, "Field 'context' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Operand = operand;
+            this.TargetType = targetType;
+            this.Flags = flags;
+            this.Context = context;
+        }
+
+
+        public BoundExpression Operand { get; }
+
+        public BoundExpression TargetType { get; }
+
+        public BoundExpression Flags { get; }
+
+        public BoundExpression Context { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicConvert(this);
+
+        public BoundQuotedDynamicConvert Update(BoundExpression operand, BoundExpression targetType, BoundExpression flags, BoundExpression context, TypeSymbol? type)
+        {
+            if (operand != this.Operand || targetType != this.TargetType || flags != this.Flags || context != this.Context || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicConvert(this.Syntax, operand, targetType, flags, context, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundQuotedDynamicArgument : BoundExpression
+    {
+        public BoundQuotedDynamicArgument(SyntaxNode syntax, BoundExpression expression, BoundExpression name, BoundExpression flags, TypeSymbol type, bool hasErrors = false)
+            : base(BoundKind.QuotedDynamicArgument, syntax, type, hasErrors || expression.HasErrors() || name.HasErrors() || flags.HasErrors())
+        {
+
+            RoslynDebug.Assert(expression is object, "Field 'expression' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(name is object, "Field 'name' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(flags is object, "Field 'flags' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(type is object, "Field 'type' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Expression = expression;
+            this.Name = name;
+            this.Flags = flags;
+        }
+
+
+        public new TypeSymbol Type => base.Type!;
+
+        public BoundExpression Expression { get; }
+
+        public BoundExpression Name { get; }
+
+        public BoundExpression Flags { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitQuotedDynamicArgument(this);
+
+        public BoundQuotedDynamicArgument Update(BoundExpression expression, BoundExpression name, BoundExpression flags, TypeSymbol type)
+        {
+            if (expression != this.Expression || name != this.Name || flags != this.Flags || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundQuotedDynamicArgument(this.Syntax, expression, name, flags, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
     internal sealed partial class BoundIsPatternExpression : BoundExpression
     {
         public BoundIsPatternExpression(SyntaxNode syntax, BoundExpression expression, BoundPattern pattern, bool isNegated, BoundDecisionDag reachabilityDecisionDag, LabelSymbol whenTrueLabel, LabelSymbol whenFalseLabel, TypeSymbol? type, bool hasErrors = false)
@@ -8702,6 +9084,24 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitInterpolatedStringArgumentPlaceholder((BoundInterpolatedStringArgumentPlaceholder)node, arg);
                 case BoundKind.StringInsert:
                     return VisitStringInsert((BoundStringInsert)node, arg);
+                case BoundKind.QuotedDynamicMemberAccess: 
+                    return VisitQuotedDynamicMemberAccess((BoundQuotedDynamicMemberAccess)node, arg);
+                case BoundKind.QuotedDynamicIndexAccess: 
+                    return VisitQuotedDynamicIndexAccess((BoundQuotedDynamicIndexAccess)node, arg);
+                case BoundKind.QuotedDynamicInvocation: 
+                    return VisitQuotedDynamicInvocation((BoundQuotedDynamicInvocation)node, arg);
+                case BoundKind.QuotedDynamicCall: 
+                    return VisitQuotedDynamicCall((BoundQuotedDynamicCall)node, arg);
+                case BoundKind.QuotedDynamicNew: 
+                    return VisitQuotedDynamicNew((BoundQuotedDynamicNew)node, arg);
+                case BoundKind.QuotedDynamicUnary: 
+                    return VisitQuotedDynamicUnary((BoundQuotedDynamicUnary)node, arg);
+                case BoundKind.QuotedDynamicBinary: 
+                    return VisitQuotedDynamicBinary((BoundQuotedDynamicBinary)node, arg);
+                case BoundKind.QuotedDynamicConvert: 
+                    return VisitQuotedDynamicConvert((BoundQuotedDynamicConvert)node, arg);
+                case BoundKind.QuotedDynamicArgument: 
+                    return VisitQuotedDynamicArgument((BoundQuotedDynamicArgument)node, arg);
                 case BoundKind.IsPatternExpression:
                     return VisitIsPatternExpression((BoundIsPatternExpression)node, arg);
                 case BoundKind.ConstantPattern:
@@ -8953,6 +9353,15 @@ namespace Microsoft.CodeAnalysis.CSharp
         public virtual R VisitInterpolatedStringHandlerPlaceholder(BoundInterpolatedStringHandlerPlaceholder node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitInterpolatedStringArgumentPlaceholder(BoundInterpolatedStringArgumentPlaceholder node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitStringInsert(BoundStringInsert node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicCall(BoundQuotedDynamicCall node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicNew(BoundQuotedDynamicNew node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitIsPatternExpression(BoundIsPatternExpression node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitConstantPattern(BoundConstantPattern node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitDiscardPattern(BoundDiscardPattern node, A arg) => this.DefaultVisit(node, arg);
@@ -9176,6 +9585,15 @@ namespace Microsoft.CodeAnalysis.CSharp
         public virtual BoundNode? VisitInterpolatedStringHandlerPlaceholder(BoundInterpolatedStringHandlerPlaceholder node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitInterpolatedStringArgumentPlaceholder(BoundInterpolatedStringArgumentPlaceholder node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitStringInsert(BoundStringInsert node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicCall(BoundQuotedDynamicCall node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicNew(BoundQuotedDynamicNew node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitIsPatternExpression(BoundIsPatternExpression node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitConstantPattern(BoundConstantPattern node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitDiscardPattern(BoundDiscardPattern node) => this.DefaultVisit(node);
@@ -10057,6 +10475,81 @@ namespace Microsoft.CodeAnalysis.CSharp
             this.Visit(node.Value);
             this.Visit(node.Alignment);
             this.Visit(node.Format);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node)
+        {
+            this.Visit(node.Receiver);
+            this.Visit(node.Name);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node)
+        {
+            this.Visit(node.Receiver);
+            this.VisitList(node.Arguments);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node)
+        {
+            this.Visit(node.Receiver);
+            this.VisitList(node.Arguments);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicCall(BoundQuotedDynamicCall node)
+        {
+            this.Visit(node.Receiver);
+            this.Visit(node.TypeReceiver);
+            this.Visit(node.Name);
+            this.Visit(node.TypeArguments);
+            this.VisitList(node.Arguments);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicNew(BoundQuotedDynamicNew node)
+        {
+            this.Visit(node.TypeReceiver);
+            this.VisitList(node.Arguments);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node)
+        {
+            this.Visit(node.ExpressionType);
+            this.Visit(node.Operand);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node)
+        {
+            this.Visit(node.ExpressionType);
+            this.Visit(node.Left);
+            this.Visit(node.Right);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node)
+        {
+            this.Visit(node.Operand);
+            this.Visit(node.TargetType);
+            this.Visit(node.Flags);
+            this.Visit(node.Context);
+            return null;
+        }
+        public override BoundNode? VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node)
+        {
+            this.Visit(node.Expression);
+            this.Visit(node.Name);
+            this.Visit(node.Flags);
             return null;
         }
         public override BoundNode? VisitIsPatternExpression(BoundIsPatternExpression node)
@@ -11345,6 +11838,90 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundLiteral? format = (BoundLiteral?)this.Visit(node.Format);
             TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(value, alignment, format, node.IsInterpolatedStringHandlerAppendCall);
+        }
+        public override BoundNode? VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(receiver, name, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(receiver, arguments, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(receiver, arguments, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicCall(BoundQuotedDynamicCall node)
+        {
+            BoundExpression? receiver = (BoundExpression?)this.Visit(node.Receiver);
+            BoundExpression? typeReceiver = (BoundExpression?)this.Visit(node.TypeReceiver);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression typeArguments = (BoundExpression)this.Visit(node.TypeArguments);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(receiver, typeReceiver, name, typeArguments, arguments, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicNew(BoundQuotedDynamicNew node)
+        {
+            BoundExpression typeReceiver = (BoundExpression)this.Visit(node.TypeReceiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(typeReceiver, arguments, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node)
+        {
+            BoundExpression expressionType = (BoundExpression)this.Visit(node.ExpressionType);
+            BoundQuotedDynamicArgument operand = (BoundQuotedDynamicArgument)this.Visit(node.Operand);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(expressionType, operand, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node)
+        {
+            BoundExpression expressionType = (BoundExpression)this.Visit(node.ExpressionType);
+            BoundQuotedDynamicArgument left = (BoundQuotedDynamicArgument)this.Visit(node.Left);
+            BoundQuotedDynamicArgument right = (BoundQuotedDynamicArgument)this.Visit(node.Right);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(expressionType, left, right, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node)
+        {
+            BoundExpression operand = (BoundExpression)this.Visit(node.Operand);
+            BoundExpression targetType = (BoundExpression)this.Visit(node.TargetType);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(operand, targetType, flags, context, type);
+        }
+        public override BoundNode? VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node)
+        {
+            BoundExpression expression = (BoundExpression)this.Visit(node.Expression);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            TypeSymbol type = this.VisitType(node.Type);
+            return node.Update(expression, name, flags, type);
         }
         public override BoundNode? VisitIsPatternExpression(BoundIsPatternExpression node)
         {
@@ -13810,6 +14387,189 @@ namespace Microsoft.CodeAnalysis.CSharp
             return updatedNode;
         }
 
+        public override BoundNode? VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicMemberAccess updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(receiver, name, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(receiver, name, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicIndexAccess updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(receiver, arguments, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(receiver, arguments, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node)
+        {
+            BoundExpression receiver = (BoundExpression)this.Visit(node.Receiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicInvocation updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(receiver, arguments, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(receiver, arguments, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicCall(BoundQuotedDynamicCall node)
+        {
+            BoundExpression? receiver = (BoundExpression?)this.Visit(node.Receiver);
+            BoundExpression? typeReceiver = (BoundExpression?)this.Visit(node.TypeReceiver);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression typeArguments = (BoundExpression)this.Visit(node.TypeArguments);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicCall updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(receiver, typeReceiver, name, typeArguments, arguments, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(receiver, typeReceiver, name, typeArguments, arguments, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicNew(BoundQuotedDynamicNew node)
+        {
+            BoundExpression typeReceiver = (BoundExpression)this.Visit(node.TypeReceiver);
+            ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicNew updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(typeReceiver, arguments, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(typeReceiver, arguments, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node)
+        {
+            BoundExpression expressionType = (BoundExpression)this.Visit(node.ExpressionType);
+            BoundQuotedDynamicArgument operand = (BoundQuotedDynamicArgument)this.Visit(node.Operand);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicUnary updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(expressionType, operand, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(expressionType, operand, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node)
+        {
+            BoundExpression expressionType = (BoundExpression)this.Visit(node.ExpressionType);
+            BoundQuotedDynamicArgument left = (BoundQuotedDynamicArgument)this.Visit(node.Left);
+            BoundQuotedDynamicArgument right = (BoundQuotedDynamicArgument)this.Visit(node.Right);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicBinary updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(expressionType, left, right, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(expressionType, left, right, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node)
+        {
+            BoundExpression operand = (BoundExpression)this.Visit(node.Operand);
+            BoundExpression targetType = (BoundExpression)this.Visit(node.TargetType);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundExpression context = (BoundExpression)this.Visit(node.Context);
+            BoundQuotedDynamicConvert updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(operand, targetType, flags, context, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(operand, targetType, flags, context, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node)
+        {
+            BoundExpression expression = (BoundExpression)this.Visit(node.Expression);
+            BoundExpression name = (BoundExpression)this.Visit(node.Name);
+            BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
+            BoundQuotedDynamicArgument updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            {
+                updatedNode = node.Update(expression, name, flags, infoAndType.Type);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(expression, name, flags, node.Type);
+            }
+            return updatedNode;
+        }
+
         public override BoundNode? VisitIsPatternExpression(BoundIsPatternExpression node)
         {
             BoundExpression expression = (BoundExpression)this.Visit(node.Expression);
@@ -15794,6 +16554,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             new TreeDumperNode("body", null, new TreeDumperNode[] { Visit(node.Body, null) }),
             new TreeDumperNode("diagnostics", node.Diagnostics, null),
             new TreeDumperNode("binder", node.Binder, null),
+            new TreeDumperNode("isAsync", node.IsAsync, null),
             new TreeDumperNode("type", node.Type, null),
             new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
             new TreeDumperNode("hasErrors", node.HasErrors, null)
@@ -15878,6 +16639,108 @@ namespace Microsoft.CodeAnalysis.CSharp
             new TreeDumperNode("alignment", null, new TreeDumperNode[] { Visit(node.Alignment, null) }),
             new TreeDumperNode("format", null, new TreeDumperNode[] { Visit(node.Format, null) }),
             new TreeDumperNode("isInterpolatedStringHandlerAppendCall", node.IsInterpolatedStringHandlerAppendCall, null),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicMemberAccess(BoundQuotedDynamicMemberAccess node, object? arg) => new TreeDumperNode("quotedDynamicMemberAccess", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("receiver", null, new TreeDumperNode[] { Visit(node.Receiver, null) }),
+            new TreeDumperNode("name", null, new TreeDumperNode[] { Visit(node.Name, null) }),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node, object? arg) => new TreeDumperNode("quotedDynamicIndexAccess", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("receiver", null, new TreeDumperNode[] { Visit(node.Receiver, null) }),
+            new TreeDumperNode("arguments", null, from x in node.Arguments select Visit(x, null)),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node, object? arg) => new TreeDumperNode("quotedDynamicInvocation", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("receiver", null, new TreeDumperNode[] { Visit(node.Receiver, null) }),
+            new TreeDumperNode("arguments", null, from x in node.Arguments select Visit(x, null)),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicCall(BoundQuotedDynamicCall node, object? arg) => new TreeDumperNode("quotedDynamicCall", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("receiver", null, new TreeDumperNode[] { Visit(node.Receiver, null) }),
+            new TreeDumperNode("typeReceiver", null, new TreeDumperNode[] { Visit(node.TypeReceiver, null) }),
+            new TreeDumperNode("name", null, new TreeDumperNode[] { Visit(node.Name, null) }),
+            new TreeDumperNode("typeArguments", null, new TreeDumperNode[] { Visit(node.TypeArguments, null) }),
+            new TreeDumperNode("arguments", null, from x in node.Arguments select Visit(x, null)),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicNew(BoundQuotedDynamicNew node, object? arg) => new TreeDumperNode("quotedDynamicNew", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("typeReceiver", null, new TreeDumperNode[] { Visit(node.TypeReceiver, null) }),
+            new TreeDumperNode("arguments", null, from x in node.Arguments select Visit(x, null)),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node, object? arg) => new TreeDumperNode("quotedDynamicUnary", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("expressionType", null, new TreeDumperNode[] { Visit(node.ExpressionType, null) }),
+            new TreeDumperNode("operand", null, new TreeDumperNode[] { Visit(node.Operand, null) }),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node, object? arg) => new TreeDumperNode("quotedDynamicBinary", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("expressionType", null, new TreeDumperNode[] { Visit(node.ExpressionType, null) }),
+            new TreeDumperNode("left", null, new TreeDumperNode[] { Visit(node.Left, null) }),
+            new TreeDumperNode("right", null, new TreeDumperNode[] { Visit(node.Right, null) }),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node, object? arg) => new TreeDumperNode("quotedDynamicConvert", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("operand", null, new TreeDumperNode[] { Visit(node.Operand, null) }),
+            new TreeDumperNode("targetType", null, new TreeDumperNode[] { Visit(node.TargetType, null) }),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
+            new TreeDumperNode("context", null, new TreeDumperNode[] { Visit(node.Context, null) }),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node, object? arg) => new TreeDumperNode("quotedDynamicArgument", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("expression", null, new TreeDumperNode[] { Visit(node.Expression, null) }),
+            new TreeDumperNode("name", null, new TreeDumperNode[] { Visit(node.Name, null) }),
+            new TreeDumperNode("flags", null, new TreeDumperNode[] { Visit(node.Flags, null) }),
             new TreeDumperNode("type", node.Type, null),
             new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
             new TreeDumperNode("hasErrors", node.HasErrors, null)

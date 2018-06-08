@@ -449,10 +449,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var arg = node.Indices[0];
                 var index = Visit(arg);
+
+                // REVIEW: It seems the following type check can never be false, because `index` is of type `Expression` (unlike `arg`).
+                //         See commit https://github.com/dotnet/roslyn/commit/7b81dc50a709a3fff6177561917b04cd0bcf5e8f where this was tweaked.
+
                 if (!TypeSymbol.Equals(index.Type, _int32Type, TypeCompareKind.ConsiderEverything2))
                 {
                     index = ConvertIndex(index, arg.Type, _int32Type);
                 }
+
                 return ExprFactory("ArrayIndex", array, index);
             }
             else
@@ -467,10 +472,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             foreach (var arg in expressions)
             {
                 var index = Visit(arg);
+
+                // REVIEW: It seems the following type check can never be false, because `index` is of type `Expression` (unlike `arg`).
+                //         See commit https://github.com/dotnet/roslyn/commit/7b81dc50a709a3fff6177561917b04cd0bcf5e8f where this was tweaked.
+
                 if (!TypeSymbol.Equals(index.Type, _int32Type, TypeCompareKind.ConsiderEverything2))
                 {
                     index = ConvertIndex(index, arg.Type, _int32Type);
                 }
+
                 builder.Add(index);
             }
 
@@ -562,14 +572,30 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitAwaitExpression(BoundAwaitExpression node, bool resultDiscarded = false)
         {
-            if (node.IsDynamic)
+            if (node.AwaitableInfo.IsDynamic)
             {
                 // TODO: add type context for dynamic operations?
                 return DynamicCSharpExprFactory("DynamicAwait", Visit(node.Expression), _bound.Literal(resultDiscarded));
             }
             else
             {
-                return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(node.GetAwaiter));
+                // TODO: Support extension await and fix assumption on shape of GetAwaiter.
+
+                // node.AwaitableInfo.AwaitableInstancePlaceholder
+                // node.AwaitableInfo.GetAwaiter
+                // node.AwaitableInfo.IsCompleted
+                // node.AwaitableInfo.GetResult
+
+                var getAwaiter = node.AwaitableInfo.GetAwaiter;
+
+                if (getAwaiter.Kind != BoundKind.Call)
+                {
+                    throw new NotImplementedException("TODO");
+                }
+
+                var boundGetAwaiter = (BoundCall)getAwaiter;
+
+                return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(boundGetAwaiter.Method));
             }
         }
 
@@ -770,7 +796,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (node.IsDelegateCall)
             {
-                if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+                if (HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Method, node.Arguments))
                 {
                     var method = node.Method;
                     return CSharpExprFactory(
@@ -787,12 +813,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                         Expressions(node.Arguments));
                 }
             }
-            else if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+            else if (HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Method, node.Arguments))
             {
                 var method = node.Method;
                 return CSharpExprFactory(
                     "Call",
-                    method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
+                    method.RequiresInstanceReceiver ? receiverOpt : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     ParameterBindings(node.Arguments, method, node.ArgsToParamsOpt));
             }
@@ -802,7 +828,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var method = node.Method;
                 return ExprFactory(
                     "Call",
-                    method.RequiresInstanceReceiver ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType),
+                    method.RequiresInstanceReceiver ? receiverOpt : _bound.Null(ExpressionType),
                     _bound.MethodInfo(method),
                     Expressions(node.Arguments));
             }
@@ -849,29 +875,20 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitConditionalAccess(BoundConditionalAccess node)
         {
-            var receiver = VisitConditionalAccessReceiver(node);
-            var conditionalReceiver = default(BoundExpression);
-            var access = VisitConditionalAccessAccess(node, out conditionalReceiver);
+            var receiver = Visit(node.Receiver);
+
+            CurrentLambdaInfo.PushConditionalReceiver();
+
+            var access = Visit(node.AccessExpression);
+
+            var conditionalReceiver = CurrentLambdaInfo.PopConditionalReceiver();
 
             return CSharpExprFactory("ConditionalAccess", receiver, conditionalReceiver, access);
         }
 
-        private BoundExpression VisitConditionalAccessReceiver(BoundConditionalAccess node)
-        {
-            var receiver = Visit(node.Receiver);
-            return receiver;
-        }
-
-        private BoundExpression VisitConditionalAccessAccess(BoundConditionalAccess node, out BoundExpression conditionalReceiver)
-        {
-            var receiver = Visit(node.AccessExpression);
-            conditionalReceiver = CurrentLambdaInfo.PopConditionalReceiver();
-            return receiver;
-        }
-
         private BoundExpression VisitConditionalReceiver(BoundConditionalReceiver node)
         {
-            return CurrentLambdaInfo.PushConditionalReceiver(node);
+            return CurrentLambdaInfo.BindConditionalReceiver(node);
         }
 
         private BoundExpression VisitConditionalOperator(BoundConditionalOperator node)
@@ -1408,11 +1425,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return Constant(node);
             }
 
-            if ((object)node.Constructor == null ||
-                (node.Arguments.Length == 0 && !node.Type.IsStructType()) ||
-                node.Constructor.IsDefaultValueTypeConstructor())
+            var hasNamedOrOptionalParameters = HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Constructor, node.Arguments);
+
+            if (!hasNamedOrOptionalParameters)
             {
-                return ExprFactory("New", _bound.Typeof(node.Type));
+                if ((object)node.Constructor == null ||
+                    (node.Arguments.Length == 0 && !node.Type.IsStructType()) ||
+                    node.Constructor.IsDefaultValueTypeConstructor())
+                {
+                    return ExprFactory("New", _bound.Typeof(node.Type));
+                }
             }
 
             var ctor = _bound.ConstructorInfo(node.Constructor);
@@ -1430,7 +1452,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
             else
             {
-                if (!node.ArgumentNamesOpt.IsDefaultOrEmpty)
+                if (hasNamedOrOptionalParameters)
                 {
                     var constructor = node.Constructor;
                     return CSharpExprFactory(

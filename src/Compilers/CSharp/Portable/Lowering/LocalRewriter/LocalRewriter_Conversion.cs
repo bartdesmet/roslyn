@@ -63,6 +63,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             bool wasInExpressionLambda = _inExpressionLambda;
             _inExpressionLambda = _inExpressionLambda || (node.ConversionKind == ConversionKind.AnonymousFunction && !wasInExpressionLambda && rewrittenType.IsExpressionTree());
+
+            if (_inExpressionLambda)
+            {
+                _sawExpressionLambda = true;
+            }
+
             var rewrittenOperand = VisitExpression(node.Operand);
             _inExpressionLambda = wasInExpressionLambda;
 
@@ -525,11 +531,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     Debug.Assert(constantValueOpt == null);
                     if (_inExpressionLambda)
                     {
-                        return _dynamicFactory.MakeDynamicConversionExpression(rewrittenOperand, explicitCastInCode || conversionKind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType);
+                        return _dynamicFactory.MakeDynamicConversionExpression(rewrittenOperand, explicitCastInCode || conversion.Kind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType);
                     }
                     else
                     {
-                        return _dynamicFactory.MakeDynamicConversion(rewrittenOperand, explicitCastInCode || conversionKind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType).ToExpression();
+                        return _dynamicFactory.MakeDynamicConversion(rewrittenOperand, explicitCastInCode || conversion.Kind == ConversionKind.ExplicitDynamic, conversion.IsArrayIndex, @checked, rewrittenType).ToExpression();
                     }
 
                 case ConversionKind.ImplicitTuple:
@@ -619,6 +625,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (source is null)
             {
                 return false;
+            }
+
+            if (source.TypeKind == TypeKind.Dynamic)
+            {
+                return true;
             }
 
             SpecialType GetUnderlyingSpecialType(TypeSymbol type) =>

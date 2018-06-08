@@ -198,7 +198,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(localOrParameter is LocalSymbol || localOrParameter is ParameterSymbol ||
                 (localOrParameter as MethodSymbol)?.MethodKind == MethodKind.LocalFunction);
-            return _allCapturedVariables.Contains(localOrParameter);
+            return !_inExpressionLambda && _allCapturedVariables.Contains(localOrParameter);
         }
 
         /// <summary>
@@ -1563,6 +1563,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundNode RewriteLambdaConversion(BoundLambda node)
         {
+            // REVIEW: Local function support for expression trees.
+
             var wasInExpressionLambda = _inExpressionLambda;
             _inExpressionLambda = _inExpressionLambda || node.Type.IsExpressionTree();
 

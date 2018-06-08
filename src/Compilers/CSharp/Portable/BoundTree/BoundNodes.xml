@@ -2239,8 +2239,8 @@
   </Node>
 
   <Node Name="BoundQuotedDynamicCall" Base="BoundExpression">
-    <Field Name="Receiver" Type="BoundExpression" Null="allow"/>
-    <Field Name="TypeReceiver" Type="BoundExpression" Null="allow"/>
+    <Field Name="Receiver" Type="BoundExpression?" Null="allow"/>
+    <Field Name="TypeReceiver" Type="BoundExpression?" Null="allow"/>
     <Field Name="Name" Type="BoundExpression" Null="disallow"/>
     <Field Name="TypeArguments" Type="BoundExpression"/>
     <Field Name="Arguments" Type="ImmutableArray&lt;BoundQuotedDynamicArgument&gt;"/>

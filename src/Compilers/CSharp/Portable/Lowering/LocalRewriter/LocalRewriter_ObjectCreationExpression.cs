@@ -78,11 +78,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     throw ExceptionUtilities.UnexpectedValue(temps.Length);
                 }
 
-                var ctor = node.Constructor.TupleUnderlyingMethod ?? node.Constructor;
-                var type = node.Constructor.ContainingType.TupleUnderlyingType ?? node.Constructor.ContainingType;
+                var ctor = node.Constructor;
+                var type = node.Constructor.ContainingType.TupleUnderlyingType ?? node.Constructor.ContainingType; // REVIEW: Tuple creation as separate node type?
                 var init = MakeObjectCreationInitializerForExpressionTree(node.InitializerExpressionOpt);
 
-                rewrittenObjectCreation = node.Update(ctor, rewrittenArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, node.Expanded, node.ArgsToParamsOpt, node.ConstantValueOpt, init, type);
+                rewrittenObjectCreation = node.Update(ctor, rewrittenArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, node.Expanded, node.ArgsToParamsOpt, node.ConstantValueOpt, init, node.BinderOpt, type);
 
                 if (node.Type.IsInterfaceType())
                 {

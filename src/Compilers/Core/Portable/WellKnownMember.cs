@@ -535,6 +535,10 @@ namespace Microsoft.CodeAnalysis
         System_MissingMethodException__ctor,
         System_Runtime_CompilerServices_MetadataUpdateOriginalTypeAttribute__ctor,
 
+        System_Index__op_Implicit_FromInt32,
+
+        Microsoft_CSharp_Expressions_CSharpExpression__SwitchCaseDefaultValue,
+
         Count
 
         // Remember to update the AllWellKnownTypeMembers tests when making changes here
