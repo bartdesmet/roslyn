@@ -19,6 +19,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly SyntheticBoundNodeFactory _bound;
         private readonly TypeMap _typeMap;
         private readonly Dictionary<ParameterSymbol, BoundExpression> _parameterMap = new Dictionary<ParameterSymbol, BoundExpression>();
+        private readonly Dictionary<BoundAwaitableValuePlaceholder, BoundExpression> _awaitableValuePlaceholderMap = new Dictionary<BoundAwaitableValuePlaceholder, BoundExpression>();
         private readonly bool _ignoreAccessibility;
         private readonly Stack<LambdaCompilationInfo> _lambdas = new Stack<LambdaCompilationInfo>();
         private int _recursionDepth;
@@ -296,6 +297,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitAsOperator((BoundAsOperator)node);
                 case BoundKind.AwaitExpression:
                     return VisitAwaitExpression((BoundAwaitExpression)node);
+                case BoundKind.AwaitableValuePlaceholder:
+                    return VisitAwaitableValuePlaceholder((BoundAwaitableValuePlaceholder)node);
                 case BoundKind.BaseReference:
                     return VisitBaseReference((BoundBaseReference)node);
                 case BoundKind.BinaryOperator:
@@ -572,31 +575,50 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitAwaitExpression(BoundAwaitExpression node, bool resultDiscarded = false)
         {
+            BoundExpression info;
+
             if (node.AwaitableInfo.IsDynamic)
             {
-                // TODO: add type context for dynamic operations?
-                return DynamicCSharpExprFactory("DynamicAwait", Visit(node.Expression), _bound.Literal(resultDiscarded));
+                var ctx = _bound.TypeofDynamicOperationContextType();
+
+                info = DynamicCSharpExprFactory("DynamicAwaitInfo", ctx, _bound.Literal(resultDiscarded));
             }
             else
             {
-                // TODO: Support extension await and fix assumption on shape of GetAwaiter.
+                var getAwaiter = MakeGetAwaiterLambda(node.AwaitableInfo);
+                var getIsCompleted = _bound.MethodInfo(node.AwaitableInfo.IsCompleted.GetOwnOrInheritedGetMethod());
+                var getResult = _bound.MethodInfo(node.AwaitableInfo.GetResult);
 
-                // node.AwaitableInfo.AwaitableInstancePlaceholder
-                // node.AwaitableInfo.GetAwaiter
-                // node.AwaitableInfo.IsCompleted
-                // node.AwaitableInfo.GetResult
-
-                var getAwaiter = node.AwaitableInfo.GetAwaiter;
-
-                if (getAwaiter.Kind != BoundKind.Call)
-                {
-                    throw new NotImplementedException("TODO");
-                }
-
-                var boundGetAwaiter = (BoundCall)getAwaiter;
-
-                return CSharpExprFactory("Await", Visit(node.Expression), _bound.MethodInfo(boundGetAwaiter.Method));
+                info = CSharpExprFactory("AwaitInfo", getAwaiter, getIsCompleted, getResult);
             }
+
+            return CSharpExprFactory("Await", Visit(node.Expression), info);
+        }
+
+        private BoundExpression VisitAwaitableValuePlaceholder(BoundAwaitableValuePlaceholder node)
+        {
+            return _awaitableValuePlaceholderMap[node];
+        }
+
+        private BoundExpression MakeGetAwaiterLambda(BoundAwaitableInfo info)
+        {
+            var awaitableType = info.AwaitableInstancePlaceholder.Type;
+            string parameterName = "p";
+            ParameterSymbol lambdaParameter = _bound.SynthesizedParameter(awaitableType, parameterName);
+            var param = _bound.SynthesizedLocal(ParameterExpressionType);
+            var parameterReference = _bound.Local(param);
+            var parameter = ExprFactory("Parameter", _bound.Typeof(awaitableType), _bound.Literal(parameterName));
+            _awaitableValuePlaceholderMap[info.AwaitableInstancePlaceholder] = parameterReference;
+            var getAwaiter = Visit(info.GetAwaiter);
+            _awaitableValuePlaceholderMap.Remove(info.AwaitableInstancePlaceholder);
+            var result = _bound.Sequence(
+                ImmutableArray.Create(param),
+                ImmutableArray.Create<BoundExpression>(_bound.AssignmentExpression(parameterReference, parameter)),
+                ExprFactory(
+                    "Lambda",
+                    getAwaiter,
+                    _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(parameterReference))));
+            return result;
         }
 
         private BoundExpression VisitBaseReference(BoundBaseReference node)
