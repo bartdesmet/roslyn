@@ -338,6 +338,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitNewT((BoundNewT)node);
                 case BoundKind.NullCoalescingOperator:
                     return VisitNullCoalescingOperator((BoundNullCoalescingOperator)node);
+                case BoundKind.NullCoalescingAssignmentOperator:
+                    return VisitNullCoalescingAssignmentOperator((BoundNullCoalescingAssignmentOperator)node);
                 case BoundKind.ObjectCreationExpression:
                     return VisitObjectCreationExpression((BoundObjectCreationExpression)node);
                 case BoundKind.Parameter:
@@ -1289,6 +1291,23 @@ namespace Microsoft.CodeAnalysis.CSharp
             else
             {
                 return ExprFactory("Coalesce", left, right);
+            }
+        }
+
+        private BoundExpression VisitNullCoalescingAssignmentOperator(BoundNullCoalescingAssignmentOperator node)
+        {
+            var left = Visit(node.LeftOperand);
+            var right = Visit(node.RightOperand);
+
+            if (node.LeftOperand.HasDynamicType() || node.RightOperand.HasDynamicType())
+            {
+                // NB: using dynamic factories to support disabling all dynamic operations in an expression tree
+
+                return DynamicCSharpExprFactory("DynamicNullCoalescingAssign", left, right);
+            }
+            else
+            {
+                return CSharpExprFactory("NullCoalescingAssign", left, right);
             }
         }
 

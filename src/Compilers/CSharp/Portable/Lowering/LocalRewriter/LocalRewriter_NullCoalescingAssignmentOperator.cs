@@ -14,6 +14,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         public override BoundNode VisitNullCoalescingAssignmentOperator(BoundNullCoalescingAssignmentOperator node)
         {
             Debug.Assert(node.Type is { });
+
+            if (_inExpressionLambda)
+            {
+                return node.Update(VisitExpression(node.LeftOperand), VisitExpression(node.RightOperand), node.Type);
+            }
+
             SyntaxNode syntax = node.Syntax;
             var temps = ArrayBuilder<LocalSymbol>.GetInstance();
             var stores = ArrayBuilder<BoundExpression>.GetInstance();
