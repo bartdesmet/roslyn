@@ -142,6 +142,22 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private bool? _hasCSharpExpression;
+        private bool HasCSharpExpression => IsDefined(ref _hasCSharpExpression, WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
+
+        private bool IsDefined(ref bool? field, WellKnownType type)
+        {
+            // NB: Always return true from this method if we like to see ERR_PredefinedTypeNotFound instead.
+            //     The goal of this metadata check is to report the original errors if the runtime library is missing.
+
+            if (!field.HasValue)
+            {
+                field = !(_compilation.GetTypeByMetadataName(type.GetMetadataName()) is null);
+            }
+
+            return field.Value;
+        }
+
         private bool Instrument
         {
             get
