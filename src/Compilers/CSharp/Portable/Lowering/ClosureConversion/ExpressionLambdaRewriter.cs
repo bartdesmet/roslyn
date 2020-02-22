@@ -422,6 +422,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.InterpolatedString:
                     return VisitInterpolatedString((BoundInterpolatedString)node);
 
+                case BoundKind.FromEndIndexExpression:
+                    return VisitFromEndIndex((BoundFromEndIndexExpression)node);
+                case BoundKind.RangeExpression:
+                    return VisitRange((BoundRangeExpression)node);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -1787,6 +1792,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             var interpolations = _bound.ArrayOrEmpty(CSharp_Expressions_InterpolationType, expressions);
 
             return CSharpExprFactory("InterpolatedString", _bound.Typeof(type), interpolations);
+        }
+
+        private BoundExpression VisitFromEndIndex(BoundFromEndIndexExpression node)
+        {
+            return CSharpExprFactory("FromEndIndex", Visit(node.Operand), _bound.MethodInfo(node.MethodOpt, useMethodBase: true), _bound.Typeof(node.Type));
+        }
+
+        private BoundExpression VisitRange(BoundRangeExpression node)
+        {
+            return CSharpExprFactory("Range", Visit(node.LeftOperandOpt) ?? _bound.Null(ExpressionType), Visit(node.RightOperandOpt) ?? _bound.Null(ExpressionType), _bound.MethodInfo(node.MethodOpt, useMethodBase: true), _bound.Typeof(node.Type));
         }
     }
 }

@@ -18,6 +18,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(node != null && node.MethodOpt != null);
 
+            if (_inExpressionLambda && HasCSharpExpression)
+            {
+                return node.Update(VisitExpression(node.LeftOperandOpt), VisitExpression(node.RightOperandOpt), node.MethodOpt, node.Type);
+            }
+
             bool needLifting = false;
             var F = _factory;
 

@@ -14,6 +14,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(node.MethodOpt != null);
 
+            if (_inExpressionLambda && HasCSharpExpression)
+            {
+                return node.Update(VisitExpression(node.Operand), node.MethodOpt, node.Type);
+            }
+
             NamedTypeSymbol booleanType = _compilation.GetSpecialType(SpecialType.System_Boolean);
             BoundExpression fromEnd = MakeLiteral(node.Syntax, ConstantValue.Create(true), booleanType);
 

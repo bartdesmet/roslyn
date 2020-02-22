@@ -11845,7 +11845,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression name = (BoundExpression)this.Visit(node.Name);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(receiver, name, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicIndexAccess(BoundQuotedDynamicIndexAccess node)
@@ -11854,7 +11854,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(receiver, arguments, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicInvocation(BoundQuotedDynamicInvocation node)
@@ -11863,7 +11863,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(receiver, arguments, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicCall(BoundQuotedDynamicCall node)
@@ -11875,7 +11875,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(receiver, typeReceiver, name, typeArguments, arguments, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicNew(BoundQuotedDynamicNew node)
@@ -11884,7 +11884,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ImmutableArray<BoundQuotedDynamicArgument> arguments = this.VisitList(node.Arguments);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(typeReceiver, arguments, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicUnary(BoundQuotedDynamicUnary node)
@@ -11893,7 +11893,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundQuotedDynamicArgument operand = (BoundQuotedDynamicArgument)this.Visit(node.Operand);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(expressionType, operand, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicBinary(BoundQuotedDynamicBinary node)
@@ -11903,7 +11903,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundQuotedDynamicArgument right = (BoundQuotedDynamicArgument)this.Visit(node.Right);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(expressionType, left, right, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicConvert(BoundQuotedDynamicConvert node)
@@ -11912,7 +11912,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression targetType = (BoundExpression)this.Visit(node.TargetType);
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
-            TypeSymbol type = this.VisitType(node.Type);
+            TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(operand, targetType, flags, context, type);
         }
         public override BoundNode? VisitQuotedDynamicArgument(BoundQuotedDynamicArgument node)

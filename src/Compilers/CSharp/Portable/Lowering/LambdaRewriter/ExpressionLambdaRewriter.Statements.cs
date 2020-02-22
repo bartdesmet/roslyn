@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections.Generic;
@@ -291,14 +293,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 var leftType = node.Left.Type;
 
-                var leftConversion = default(BoundExpression);
+                BoundExpression leftConversion = null;
                 if (node.LeftConversion.IsUserDefined)
                 {
                     leftType = node.LeftConversion.Method.ReturnType;
                     leftConversion = MakeConversionLambda(node.LeftConversion, leftType, leftType);
                 }
 
-                var finalConversion = default(BoundExpression);
+                BoundExpression finalConversion = null;
                 if (node.FinalConversion.IsUserDefined)
                 {
                     var operationResultType = leftType; // TODO: check if this is the right type to use here
@@ -306,7 +308,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
                 }
 
-                var args = default(BoundExpression[]);
+                BoundExpression[] args;
 
                 if (leftConversion != null || finalConversion != null)
                 {
@@ -358,7 +360,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var op = Visit(node.Operand);
 
-            var unaryOperatorName = default(string);
+            string unaryOperatorName;
 
             switch (node.OperatorKind & UnaryOperatorKind.OpMask)
             {
@@ -405,7 +407,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 // node.OperandConversion
                 // node.ResultConversion
 
-                var args = default(BoundExpression[]);
+                BoundExpression[] args;
 
                 if (node.MethodOpt != null)
                 {
@@ -451,7 +453,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             var locals = PushLocals(node.Locals);
 
-            var lastStmt = default(BoundStatement);
+            BoundStatement lastStmt = null;
 
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
             foreach (var stmt in Flatten(node.Statements))
@@ -464,7 +466,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             PopLocals(node.Locals);
 
-            var returnLabel = default(BoundLocal);
+            BoundLocal returnLabel = null;
 
             if (isTopLevel)
             {
@@ -496,7 +498,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ToBlock(node.Statements);
         }
 
-        private BoundExpression ToBlock(ImmutableArray<BoundStatement> expressions, BoundExpression variables = null)
+        private BoundExpression ToBlock(ImmutableArray<BoundStatement> expressions, BoundExpression? variables = null)
         {
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
             foreach (var arg in Flatten(expressions))
@@ -508,9 +510,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ToBlock(builder, variables);
         }
 
-        private BoundExpression ToBlock(ArrayBuilder<BoundExpression> builder, BoundExpression variables = null, BoundLocal returnLabel = null)
+        private BoundExpression ToBlock(ArrayBuilder<BoundExpression> builder, BoundExpression? variables = null, BoundLocal? returnLabel = null)
         {
-            var res = default(BoundExpression);
+            BoundExpression res;
 
             if (returnLabel != null)
             {
@@ -1102,7 +1104,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     var returnLabelTargetLocal = CreateLabelTargetLocal(returnLabelTarget);
                     _returnLabelTarget = returnLabelTargetLocal;
 
-                    var returnLabelTargetCreation = default(BoundExpression);
+                    BoundExpression returnLabelTargetCreation;
                     if (type is null || type.SpecialType == SpecialType.System_Void)
                     {
                         returnLabelTargetCreation = _parent.CSharpStmtFactory("Label");
@@ -1217,8 +1219,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             internal BoundLocal GetOrAddLabel(LabelSymbol label)
             {
-                var labelLocal = default(BoundLocal);
-                if (!TryGetLabel(label, out labelLocal))
+                if (!TryGetLabel(label, out var labelLocal))
                 {
                     var labelLocalSymbol = CreateLabelTargetLocalSymbol();
                     labelLocal = CreateLabelTargetLocal(labelLocalSymbol);

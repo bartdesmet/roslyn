@@ -555,7 +555,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var rewrittenInitializer = VisitExpression(decl.InitializerOpt);
 
-                if (decl.LocalSymbol.Type.IsDynamic())
+                if (rewrittenInitializer != null && decl.LocalSymbol.Type.IsDynamic())
                 {
                     rewrittenInitializer = MakeConversionNode(
                         decl.Syntax,

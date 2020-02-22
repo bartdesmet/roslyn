@@ -17,7 +17,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
-                var rewrittenExpression = (BoundExpression)Visit(node.Expression);
+                var rewrittenExpression = VisitExpression(node.Expression);
                 var rewrittenSections = VisitList(node.SwitchSections);
 
                 return node.Update(rewrittenExpression, node.InnerLocals, node.InnerLocalFunctions, rewrittenSections, node.DecisionDag, node.DefaultLabel, node.BreakLabel);
