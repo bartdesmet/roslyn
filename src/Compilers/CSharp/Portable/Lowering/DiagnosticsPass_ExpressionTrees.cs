@@ -106,6 +106,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public override BoundNode VisitArrayAccess(BoundArrayAccess node)
         {
             if (_inExpressionLambda &&
+                !HasCSharpExpression &&
                 node.Indices.Length == 1 &&
                 node.Indices[0].Type!.SpecialType == SpecialType.None)
             {
