@@ -483,15 +483,23 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var arg = node.Indices[0];
                 var index = Visit(arg);
 
-                // REVIEW: It seems the following type check can never be false, because `index` is of type `Expression` (unlike `arg`).
-                //         See commit https://github.com/dotnet/roslyn/commit/7b81dc50a709a3fff6177561917b04cd0bcf5e8f where this was tweaked.
-
-                if (!TypeSymbol.Equals(index.Type, _int32Type, TypeCompareKind.ConsiderEverything2))
+                if (TypeSymbol.Equals(arg.Type, _bound.WellKnownType(WellKnownType.System_Index), TypeCompareKind.ConsiderEverything2) ||
+                    TypeSymbol.Equals(arg.Type, _bound.WellKnownType(WellKnownType.System_Range), TypeCompareKind.ConsiderEverything2))
                 {
-                    index = ConvertIndex(index, arg.Type, _int32Type);
+                    return CSharpExprFactory("ArrayAccess", array, index);
                 }
+                else
+                {
+                    // REVIEW: It seems the following type check can never be false, because `index` is of type `Expression` (unlike `arg`).
+                    //         See commit https://github.com/dotnet/roslyn/commit/7b81dc50a709a3fff6177561917b04cd0bcf5e8f where this was tweaked.
 
-                return ExprFactory("ArrayIndex", array, index);
+                    if (!TypeSymbol.Equals(index.Type, _int32Type, TypeCompareKind.ConsiderEverything2))
+                    {
+                        index = ConvertIndex(index, arg.Type, _int32Type);
+                    }
+
+                    return ExprFactory("ArrayIndex", array, index);
+                }
             }
             else
             {

@@ -697,6 +697,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitArrayAccess(BoundArrayAccess node)
         {
+            if (_inExpressionLambda && HasCSharpExpression)
+            {
+                return base.VisitArrayAccess(node)!;
+            }
+
             // An array access expression can be indexed using any of the following types:
             //   * an integer primitive
             //   * a System.Index
