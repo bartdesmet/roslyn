@@ -29,8 +29,8 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly Action<Binder, SyntaxNode> _binderUpdatedHandler;
         private SmallDictionary<SyntaxNode, Binder> _lazyBinderMap;
 
-        internal ExecutableCodeBinder(SyntaxNode root, Symbol memberSymbol, Binder next, Action<Binder, SyntaxNode> binderUpdatedHandler = null)
-            : this(root, memberSymbol, next, next.Flags)
+        internal ExecutableCodeBinder(SyntaxNode root, Symbol memberSymbol, Binder next, Action<Binder, SyntaxNode> binderUpdatedHandler = null, bool inExpressionTree = false)
+            : this(root, memberSymbol, next, inExpressionTree ? next.Flags | BinderFlags.InExpressionTree : next.Flags)
         {
             _binderUpdatedHandler = binderUpdatedHandler;
         }

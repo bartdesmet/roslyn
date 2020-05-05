@@ -7817,23 +7817,31 @@ namespace Microsoft.CodeAnalysis.CSharp
                     result = TryImplicitConversionToArrayIndex(index, WellKnownType.System_Range, node, diagnostics);
                     if (result is object)
                     {
-                        indexOrRangeWellknownType = WellKnownType.System_Range;
-                        // This member is needed for lowering and should produce an error if not present
-                        _ = GetWellKnownTypeMember(
-                            WellKnownMember.System_Runtime_CompilerServices_RuntimeHelpers__GetSubArray_T,
-                            diagnostics,
-                            syntax: node);
+                        if (!InExpressionTree)
+                        {
+                            indexOrRangeWellknownType = WellKnownType.System_Range;
+                            // This member is needed for lowering and should produce an error if not present
+                            _ = GetWellKnownTypeMember(
+                                Compilation,
+                                WellKnownMember.System_Runtime_CompilerServices_RuntimeHelpers__GetSubArray_T,
+                                diagnostics,
+                                syntax: node);
+                        }
                     }
                 }
                 else
                 {
-                    indexOrRangeWellknownType = WellKnownType.System_Index;
+                    if (!InExpressionTree)
+                    {
+                        indexOrRangeWellknownType = WellKnownType.System_Index;
 
-                    // This member is needed for lowering and should produce an error if not present
-                    _ = GetWellKnownTypeMember(
-                        WellKnownMember.System_Index__GetOffset,
-                        diagnostics,
-                        syntax: node);
+                        // This member is needed for lowering and should produce an error if not present
+                        _ = GetWellKnownTypeMember(
+                            Compilation,
+                            WellKnownMember.System_Index__GetOffset,
+                            diagnostics,
+                            syntax: node);
+                    }
                 }
             }
 
