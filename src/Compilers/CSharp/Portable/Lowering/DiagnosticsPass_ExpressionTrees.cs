@@ -128,7 +128,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitFromEndIndexExpression(BoundFromEndIndexExpression node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpExpression)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsFromEndIndexExpression, node);
             }
@@ -138,7 +138,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitRangeExpression(BoundRangeExpression node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpExpression)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsRangeExpression, node);
             }
