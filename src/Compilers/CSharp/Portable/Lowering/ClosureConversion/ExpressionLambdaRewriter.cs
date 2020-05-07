@@ -866,11 +866,18 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else
                 {
-                    // Generate Expression.Invoke(Receiver, arguments)
-                    return ExprFactory(
-                        "Invoke",
-                        receiverOpt,
-                        Expressions(node.Arguments));
+                    var args = Expressions(node.Arguments);
+                    
+                    if (HasByRefArrayAccessUsingSystemIndexParameters(node.Method, node.Arguments))
+                    {
+                        // Generate CSharpExpression.Invoke(Receiver, arguments)
+                        return CSharpExprFactory("Invoke", receiverOpt, args);
+                    }
+                    else
+                    {
+                        // Generate Expression.Invoke(Receiver, arguments)
+                        return ExprFactory("Invoke", receiverOpt, args);
+                    }
                 }
             }
             else if (HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Method, node.Arguments))
@@ -884,13 +891,22 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
             else
             {
-                // Generate Expression.Call(Receiver, Method, [typeArguments,] arguments)
                 var method = node.Method;
-                return ExprFactory(
-                    "Call",
-                    method.RequiresInstanceReceiver ? receiverOpt : _bound.Null(ExpressionType),
-                    _bound.MethodInfo(method),
-                    Expressions(node.Arguments));
+
+                var obj = method.RequiresInstanceReceiver ? receiverOpt : _bound.Null(ExpressionType);
+                var mtd = _bound.MethodInfo(method);
+                var args = Expressions(node.Arguments);
+
+                if (HasByRefArrayAccessUsingSystemIndexParameters(method, node.Arguments))
+                {
+                    // Generate CSharpExpression.Call(Receiver, Method, arguments)
+                    return CSharpExprFactory("Call", obj, mtd, args);
+                }
+                else
+                {
+                    // Generate Expression.Call(Receiver, Method, arguments)
+                    return ExprFactory("Call", obj, mtd, args);
+                }
             }
         }
 
@@ -900,6 +916,40 @@ namespace Microsoft.CodeAnalysis.CSharp
             return !argumentNamesOpt.IsDefaultOrEmpty || method.ParameterCount != arguments.Length;
         }
 
+        private bool HasByRefArrayAccessUsingSystemIndexParameters(MethodSymbol method, ImmutableArray<BoundExpression> arguments)
+        {
+            // NB: When an ArrayAccess node using System.Index occurs in a by-ref position, we need to guarantee we can
+            //     reduce the generated expression tree node such that a reference to the array slot is passed. This
+            //     requires reduction of the enclosing node (Call, New, or Invoke) such that all requires temporaries for
+            //     the array and index computation end up in a Block, while allowing for an IndexExpression to be passed
+            //     to the by-ref parameter. See Microsoft.CSharp.Expressions for more info.
+
+            var parameters = method.GetParameters();
+
+            for (var i = 0; i < arguments.Length; i++)
+            {
+                var arg = arguments[i];
+                var par = parameters[i];
+
+                if (par.RefKind == RefKind.Out || par.RefKind == RefKind.Ref)
+                {
+                    if (arg is BoundArrayAccess arrayAccess)
+                    {
+                        if (arrayAccess.Indices.Length == 1)
+                        {
+                            var index = arrayAccess.Indices[0];
+
+                            if (TypeSymbol.Equals(index.Type, _bound.WellKnownType(WellKnownType.System_Index), TypeCompareKind.ConsiderEverything2))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
 
         private BoundExpression ParameterBindings(ImmutableArray<BoundExpression> arguments, MethodSymbol method, ImmutableArray<int> argsToParamsOpt)
         {
@@ -1541,7 +1591,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else
                 {
-                    return ExprFactory("New", ctor, args);
+                    if (HasByRefArrayAccessUsingSystemIndexParameters(node.Constructor, node.Arguments))
+                    {
+                        return CSharpExprFactory("New", ctor, args);
+                    }
+                    else
+                    {
+                        return ExprFactory("New", ctor, args);
+                    }
                 }
             }
         }
