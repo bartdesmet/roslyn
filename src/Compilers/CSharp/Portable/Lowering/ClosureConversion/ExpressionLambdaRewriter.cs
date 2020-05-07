@@ -867,7 +867,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 else
                 {
                     var args = Expressions(node.Arguments);
-                    
+
                     if (HasByRefArrayAccessUsingSystemIndexParameters(node.Method, node.Arguments))
                     {
                         // Generate CSharpExpression.Invoke(Receiver, arguments)
