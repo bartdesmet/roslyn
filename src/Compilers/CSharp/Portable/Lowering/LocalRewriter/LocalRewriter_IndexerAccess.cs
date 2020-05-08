@@ -222,6 +222,13 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitImplicitIndexerAccess(BoundImplicitIndexerAccess node, bool isLeftOfAssignment)
         {
+            // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
+
+            // if (_inExpressionLambda)
+            // {
+            //     return node.Update(VisitExpression(node.Receiver), node.LengthOrCountProperty, node.PatternSymbol, VisitExpression(node.Argument), node.Type);
+            // }
+
             if (TypeSymbol.Equals(
                 node.Argument.Type,
                 _compilation.GetWellKnownType(WellKnownType.System_Index),

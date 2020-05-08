@@ -35,9 +35,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                     break;
 
                 case BoundKind.ImplicitIndexerAccess:
-                    loweredLeft = VisitImplicitIndexerAccess(
-                        (BoundImplicitIndexerAccess)left,
-                        isLeftOfAssignment: true);
+                    if (_inExpressionLambda)
+                    {
+                        loweredLeft = VisitExpression(left);
+                    }
+                    else
+                    {
+                        loweredLeft = VisitImplicitIndexerAccess(
+                            (BoundImplicitIndexerAccess)left,
+                            isLeftOfAssignment: true);
+                    }
                     break;
 
                 case BoundKind.EventAccess:
