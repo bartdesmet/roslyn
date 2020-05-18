@@ -507,6 +507,11 @@
         <target state="translated">Une arborescence d’expressions ne peut pas contenir d’accès à un membre d’interface virtuelle ou abstraite statique</target>
         <note />
       </trans-unit>
+      <trans-unit id="ERR_ExpressionTreeContainsBadTupleBinary">
+        <source>An expression tree lambda may not contain a tuple == or != operator with a null literal occurring in a tuple literal operand.</source>
+        <target state="new">An expression tree lambda may not contain a tuple == or != operator with a null literal occurring in a tuple literal operand.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="ERR_ExpressionTreeContainsFromEndIndexExpression">
         <source>An expression tree may not contain a from-end index ('^') expression.</source>
         <target state="translated">Une arborescence de l'expression ne peut pas contenir d'expression d'index partant de la fin ('^').</target>

@@ -27,6 +27,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// </summary>
         public override BoundNode VisitTupleBinaryOperator(BoundTupleBinaryOperator node)
         {
+            if (_inExpressionLambda)
+            {
+                return node.Update(VisitExpression(node.Left), VisitExpression(node.Right), node.OperatorKind, node.Operators, node.Type);
+            }
+
             var boolType = node.Type; // we can re-use the bool type
             var initEffects = ArrayBuilder<BoundExpression>.GetInstance();
             var temps = ArrayBuilder<LocalSymbol>.GetInstance();

@@ -507,6 +507,11 @@
         <target state="translated">Un albero delle espressioni può non contenere un accesso del membro di interfaccia statico astratto o virtuale</target>
         <note />
       </trans-unit>
+      <trans-unit id="ERR_ExpressionTreeContainsBadTupleBinary">
+        <source>An expression tree lambda may not contain a tuple == or != operator with a null literal occurring in a tuple literal operand.</source>
+        <target state="new">An expression tree lambda may not contain a tuple == or != operator with a null literal occurring in a tuple literal operand.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="ERR_ExpressionTreeContainsFromEndIndexExpression">
         <source>An expression tree may not contain a from-end index ('^') expression.</source>
         <target state="translated">Un albero delle espressioni non può contenere un'espressione di indice from end ('^').</target>

@@ -2122,6 +2122,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         #endregion
 
+        #region diagnostics introduced for expression tree work
+
+        ERR_ExpressionTreeContainsBadTupleBinary = 9900,
+
+        #endregion
+
         // Note: you will need to do the following after adding any code:
         //  1) Update ErrorFacts.IsBuildOnlyDiagnostic to handle the new error code.
         // Additionally, after adding a new warning you will need to do the following:

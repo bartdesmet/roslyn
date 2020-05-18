@@ -335,6 +335,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             return specialType;
         }
 
+        public ArrayTypeSymbol ArrayType(TypeSymbol elementType)
+        {
+            return Compilation.CreateArrayTypeSymbol(elementType);
+        }
+
         public ArrayTypeSymbol WellKnownArrayType(WellKnownType elementType)
         {
             return Compilation.CreateArrayTypeSymbol(WellKnownType(elementType));
@@ -575,9 +580,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             return SynthesizedParameterSymbol.Create(container, TypeWithAnnotations.Create(type), ordinal, RefKind.None, name);
         }
 
-        public BoundBinaryOperator Binary(BinaryOperatorKind kind, TypeSymbol type, BoundExpression left, BoundExpression right)
+        public BoundBinaryOperator Binary(BinaryOperatorKind kind, TypeSymbol type, BoundExpression left, BoundExpression right, MethodSymbol? method = null)
         {
             return new BoundBinaryOperator(this.Syntax, kind, ConstantValue.NotAvailable, methodOpt: null, constrainedToTypeOpt: null, LookupResultKind.Viable, left, right, type) { WasCompilerGenerated = true };
+        }
+
+        public BoundUnaryOperator Unary(UnaryOperatorKind kind, TypeSymbol type, BoundExpression operand, MethodSymbol? method = null)
+        {
+            return new BoundUnaryOperator(this.Syntax, kind, operand, ConstantValue.NotAvailable, method, LookupResultKind.Viable, type) { WasCompilerGenerated = true };
+        }
+
+        public BoundTupleBinaryOperator TupleBinary(BinaryOperatorKind kind, TypeSymbol type, BoundExpression left, BoundExpression right, TupleBinaryOperatorInfo.Multiple operators)
+        {
+            return new BoundTupleBinaryOperator(this.Syntax, left, right, kind, operators, type) { WasCompilerGenerated = true };
         }
 
         public BoundAsOperator As(BoundExpression operand, TypeSymbol type)

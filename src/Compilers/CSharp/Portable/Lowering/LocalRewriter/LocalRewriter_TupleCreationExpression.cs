@@ -19,6 +19,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitConvertedTupleLiteral(BoundConvertedTupleLiteral node)
         {
+            if (_inExpressionLambda)
+            {
+                return node.Update(node.SourceTuple, node.WasTargetTyped, VisitList(node.Arguments), node.ArgumentNamesOpt, node.InferredNamesOpt, node.Type);
+            }
+
             return VisitTupleExpression(node);
         }
 
