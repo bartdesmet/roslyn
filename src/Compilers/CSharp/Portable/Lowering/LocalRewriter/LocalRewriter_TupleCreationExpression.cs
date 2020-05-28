@@ -14,6 +14,12 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitTupleLiteral(BoundTupleLiteral node)
         {
+            if (_inExpressionLambda)
+            {
+                // NB: Occurs as left hand side of BoundDeconstructionAssignmentOperator.
+                return node.Update(VisitList(node.Arguments), node.ArgumentNamesOpt, node.InferredNamesOpt, node.Type);
+            }
+
             throw ExceptionUtilities.Unreachable;
         }
 

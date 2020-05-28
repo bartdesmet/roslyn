@@ -19,6 +19,20 @@ namespace Microsoft.CodeAnalysis.CSharp
             var right = node.Right;
             Debug.Assert(right.Conversion.Kind == ConversionKind.Deconstruction);
 
+            if (_inExpressionLambda)
+            {
+                var left = (BoundTupleExpression)Visit(node.Left)!;
+                var rightOperand = VisitExpression(right.Operand);
+
+                //
+                // NB: We don't (yet) recurse into the Invocation expression inside right.Conversion's DeconstructionInfo.
+                //     The binder's MakeDeconstructInvocationExpression method creates an expression to invoke Deconstruct
+                //     using placeholders for the input and outputs, which we can rewrite as-is in ExpressionLambdaRewriter.
+                //
+
+                return node.Update(left, right.UpdateOperand(rightOperand), node.IsUsed, node.Type);
+            }
+
             return RewriteDeconstruction(node.Left, right.Conversion, right.Operand, node.IsUsed);
         }
 

@@ -77,6 +77,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private NamedTypeSymbol _CSharp_Expressions_ConversionType;
+        private NamedTypeSymbol CSharp_Expressions_ConversionType => _CSharp_Expressions_ConversionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_Conversion);
+
         private NamedTypeSymbol _ParameterExpressionType;
         private NamedTypeSymbol ParameterExpressionType
         {
@@ -293,7 +296,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return true;
         }
 
-        private BoundExpression Visit(BoundExpression node)
+        private BoundExpression Visit(BoundExpression node, bool convertToExpressionType = true)
         {
             if (node == null)
             {
@@ -311,7 +314,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return result;
             }
 
-            return _bound.Convert(ExpressionType, result);
+            return convertToExpressionType ? _bound.Convert(ExpressionType, result) : result;
         }
 
         private BoundExpression VisitExpressionWithoutStackGuard(BoundExpression node)
@@ -448,6 +451,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitConvertedTupleLiteral((BoundConvertedTupleLiteral)node);
                 case BoundKind.TupleBinaryOperator:
                     return VisitTupleBinaryOperator((BoundTupleBinaryOperator)node);
+
+                case BoundKind.DeconstructionAssignmentOperator:
+                    return VisitDeconstructionAssignmentOperator((BoundDeconstructionAssignmentOperator)node);
 
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
@@ -2250,6 +2256,167 @@ namespace Microsoft.CodeAnalysis.CSharp
             // REVIEW: InferredNamesOpt
 
             return (args, argNames);
+        }
+
+        private BoundExpression VisitDeconstructionAssignmentOperator(BoundDeconstructionAssignmentOperator node)
+        {
+            var left = Visit(node.Left, convertToExpressionType: false);
+            var right = Visit(node.Right.Operand);
+            var conversion = VisitDeconstructionConversion(node.Right.Conversion, node.Right.Operand.Type, node.Left.Type);
+
+            return CSharpExprFactory("DeconstructionAssignment", _bound.Typeof(node.Type), left, right, conversion);
+        }
+
+        private BoundExpression VisitDeconstructionConversion(Conversion conversion, TypeSymbol fromType, TypeSymbol toType)
+        {
+            Debug.Assert(conversion.Kind == ConversionKind.Deconstruction);
+
+            //
+            // E.g. (int a, (long x, double y)) = t where t is (int, Point)
+            //
+            // Deconstruction
+            //   ElementConversions:
+            //     Conversion
+            //       Lambda: (int x) => x  // identity for a
+            //     Deconstruction
+            //       Method: Point.Deconstruct(out int x, out int y)
+            //       ElementConversions: 
+            //         Conversion
+            //           Lambda: (int x) => (long)x    // convert x
+            //         Conversion
+            //           Lambda: (int x) => (double)x  // convert y
+            //
+
+            BoundExpression MakeConversions(ImmutableArray<Conversion> elementConversions, ImmutableArray<TypeSymbol> sourceTypes, ImmutableArray<TypeSymbol> destTypes)
+            {
+                var builder = ArrayBuilder<BoundExpression>.GetInstance(elementConversions.Length);
+
+                for (int i = 0, n = elementConversions.Length; i < n; i++)
+                {
+                    var elementConversion = elementConversions[i];
+
+                    BoundExpression conversionExpr;
+
+                    if (elementConversion.Kind == ConversionKind.Deconstruction)
+                    {
+                        conversionExpr = VisitDeconstructionConversion(elementConversion, sourceTypes[i], destTypes[i]);
+                    }
+                    else
+                    {
+                        conversionExpr = CSharpExprFactory("Conversion", MakeConversionLambda(elementConversion, sourceTypes[i], destTypes[i]));
+                    }
+
+                    builder.Add(conversionExpr);
+                }
+
+                return _bound.Array(CSharp_Expressions_ConversionType, builder.ToImmutableAndFree());
+            }
+
+            if (conversion.DeconstructionInfo.IsDefault)
+            {
+                Debug.Assert(fromType.IsTupleType);
+                Debug.Assert(toType.IsTupleType);
+
+                var sourceTypes = fromType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
+                var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
+
+                var conversions = MakeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
+
+                return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), conversions);
+            }
+            else
+            {
+                Debug.Assert(toType.IsTupleType);
+
+                var sourceTypes = conversion.DeconstructionInfo.OutputPlaceholders.SelectAsArray(t => t.Type);
+                var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
+
+                var deconstruct = MakeDeconstructLambda(conversion.DeconstructionInfo);
+
+                var conversions = MakeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
+
+                return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), deconstruct, conversions);
+
+                BoundExpression MakeDeconstructLambda(DeconstructMethodInfo info)
+                {
+                    var replacements = new Dictionary<BoundDeconstructValuePlaceholder, BoundExpression>();
+                    var locals = ImmutableArray.CreateBuilder<LocalSymbol>(1 + info.OutputPlaceholders.Length);
+                    var lambdaParams = ImmutableArray.CreateBuilder<BoundExpression>(1 + info.OutputPlaceholders.Length);
+                    var assignments = ImmutableArray.CreateBuilder<BoundExpression>(1 + info.OutputPlaceholders.Length);
+                    var parameterMapKeys = new List<ParameterSymbol>(1 + info.OutputPlaceholders.Length);
+
+                    var inputParameterSymbol = _bound.SynthesizedParameter(info.InputPlaceholder.Type, "i");
+                    var inputParameter = _bound.Parameter(inputParameterSymbol);
+                    replacements.Add(info.InputPlaceholder, inputParameter);
+
+                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                    locals.Add(inputParamExprSymbol);
+
+                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
+                    lambdaParams.Add(inputParamExpr);
+
+                    _parameterMap.Add(inputParameterSymbol, inputParamExpr);
+                    parameterMapKeys.Add(inputParameterSymbol);
+
+                    var inputParam = ExprFactory("Parameter", _bound.Typeof(info.InputPlaceholder.Type), _bound.Literal("i"));
+                    assignments.Add(_bound.AssignmentExpression(inputParamExpr, inputParam));
+
+                    for (int i = 0, n = info.OutputPlaceholders.Length; i < n; i++)
+                    {
+                        var outputPlaceholder = info.OutputPlaceholders[i];
+                        var name = "o" + i;
+
+                        var outputParameterSymbol = _bound.SynthesizedParameter(outputPlaceholder.Type, name, refKind: RefKind.Out);
+                        var outputParameter = _bound.Parameter(outputParameterSymbol);
+                        replacements.Add(outputPlaceholder, outputParameter);
+
+                        var outputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                        locals.Add(outputParamExprSymbol);
+
+                        var outputParamExpr = _bound.Local(outputParamExprSymbol);
+                        lambdaParams.Add(outputParamExpr);
+
+                        _parameterMap.Add(outputParameterSymbol, outputParamExpr);
+                        parameterMapKeys.Add(outputParameterSymbol);
+
+                        var outputParam = ExprFactory("Parameter", _bound.InstanceCall(_bound.Typeof(outputPlaceholder.Type), "MakeByRefType"), _bound.Literal(name));
+                        assignments.Add(_bound.AssignmentExpression(outputParamExpr, outputParam));
+                    }
+
+                    var rewrittenInvocation = (BoundExpression)new DeconstructValuePlaceholderSubstitutor(replacements).Visit(info.Invocation);
+                    var body = Visit(rewrittenInvocation);
+
+                    foreach (var parameterMapKey in parameterMapKeys)
+                    {
+                        _parameterMap.Remove(parameterMapKey);
+                    }
+
+                    var result = _bound.Sequence(
+                        locals.ToImmutable(),
+                        assignments.ToImmutable(),
+                        ExprFactory(
+                            "Lambda",
+                            body,
+                            _bound.ArrayOrEmpty(ParameterExpressionType, lambdaParams.ToImmutable())));
+
+                    return result;
+                }
+            }
+        }
+
+        private sealed class DeconstructValuePlaceholderSubstitutor : BoundTreeRewriterWithStackGuard
+        {
+            private readonly Dictionary<BoundDeconstructValuePlaceholder, BoundExpression> _replacements;
+
+            public DeconstructValuePlaceholderSubstitutor(Dictionary<BoundDeconstructValuePlaceholder, BoundExpression> replacements)
+            {
+                _replacements = replacements;
+            }
+
+            public override BoundNode VisitDeconstructValuePlaceholder(BoundDeconstructValuePlaceholder node)
+            {
+                return _replacements[node];
+            }
         }
     }
 }
