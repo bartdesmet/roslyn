@@ -2394,8 +2394,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     var result = _bound.Sequence(
                         locals.ToImmutable(),
                         assignments.ToImmutable(),
-                        ExprFactory(
-                            "Lambda",
+                        CSharpExprFactory(
+                            "DeconstructLambda",
                             body,
                             _bound.ArrayOrEmpty(ParameterExpressionType, lambdaParams.ToImmutable())));
 
