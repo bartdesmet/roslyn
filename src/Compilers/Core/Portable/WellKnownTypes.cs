@@ -203,14 +203,11 @@ namespace Microsoft.CodeAnalysis
 
         System_Linq_Enumerable,
         System_Linq_Expressions_Expression,
-        System_Linq_Expressions_LambdaExpression,
         System_Linq_Expressions_Expression_T,
         System_Linq_Expressions_ParameterExpression,
         System_Linq_Expressions_ElementInit,
         System_Linq_Expressions_MemberBinding,
         System_Linq_Expressions_ExpressionType,
-        System_Linq_Expressions_LabelTarget,
-        System_Linq_Expressions_CatchBlock,
         System_Linq_IQueryable,
         System_Linq_IQueryable_T,
 
@@ -331,6 +328,10 @@ namespace Microsoft.CodeAnalysis
 
         System_MissingMethodException,
         System_Runtime_CompilerServices_MetadataUpdateOriginalTypeAttribute,
+
+        System_Linq_Expressions_LambdaExpression,
+        System_Linq_Expressions_LabelTarget,
+        System_Linq_Expressions_CatchBlock,
 
         Microsoft_CSharp_Expressions_CSharpExpression,
         Microsoft_CSharp_Expressions_ParameterAssignment,
@@ -539,14 +540,11 @@ namespace Microsoft.CodeAnalysis
 
             "System.Linq.Enumerable",
             "System.Linq.Expressions.Expression",
-            "System.Linq.Expressions.LambdaExpression",
             "System.Linq.Expressions.Expression`1",
             "System.Linq.Expressions.ParameterExpression",
             "System.Linq.Expressions.ElementInit",
             "System.Linq.Expressions.MemberBinding",
             "System.Linq.Expressions.ExpressionType",
-            "System.Linq.Expressions.LabelTarget",
-            "System.Linq.Expressions.CatchBlock",
             "System.Linq.IQueryable",
             "System.Linq.IQueryable`1",
 
@@ -663,6 +661,10 @@ namespace Microsoft.CodeAnalysis
             "System.Diagnostics.CodeAnalysis.UnscopedRefAttribute",
             "System.MissingMethodException",
             "System.Runtime.CompilerServices.MetadataUpdateOriginalTypeAttribute",
+
+            "System.Linq.Expressions.LambdaExpression",
+            "System.Linq.Expressions.LabelTarget",
+            "System.Linq.Expressions.CatchBlock",
 
             "Microsoft.CSharp.Expressions.CSharpExpression",
             "Microsoft.CSharp.Expressions.ParameterAssignment",
