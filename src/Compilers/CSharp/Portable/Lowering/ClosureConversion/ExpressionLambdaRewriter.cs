@@ -2032,29 +2032,31 @@ namespace Microsoft.CodeAnalysis.CSharp
             return CSharpExprFactory("Range", Visit(node.LeftOperandOpt) ?? _bound.Null(ExpressionType), Visit(node.RightOperandOpt) ?? _bound.Null(ExpressionType), _bound.MethodInfo(node.MethodOpt, useMethodBase: true), _bound.Typeof(node.Type));
         }
 
-        private BoundExpression VisitIndexOrRangePatternIndexerAccess(BoundIndexOrRangePatternIndexerAccess node)
-        {
-            MethodSymbol GetAccessor(PropertySymbol p)
-            {
-                return p.GetOwnOrInheritedGetMethod() ?? p.GetOwnOrInheritedSetMethod();
-            }
+        // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
 
-            var countProperty = node.LengthOrCountProperty;
-            var countAccessor = GetAccessor(countProperty);
+        // private BoundExpression VisitIndexOrRangePatternIndexerAccess(BoundIndexOrRangePatternIndexerAccess node)
+        // {
+        //     MethodSymbol GetAccessor(PropertySymbol p)
+        //     {
+        //         return p.GetOwnOrInheritedGetMethod() ?? p.GetOwnOrInheritedSetMethod();
+        //     }
 
-            var receiver = Visit(node.Receiver);
-            var argument = Visit(node.Argument);
-            var lengthOrCount = _bound.MethodInfo(countAccessor);
+        //     var countProperty = node.LengthOrCountProperty;
+        //     var countAccessor = GetAccessor(countProperty);
 
-            var indexer = node.PatternSymbol switch
-            {
-                PropertySymbol p => GetAccessor(p),
-                MethodSymbol m => m,
-                _ => throw ExceptionUtilities.UnexpectedValue(node.PatternSymbol)
-            };
+        //     var receiver = Visit(node.Receiver);
+        //     var argument = Visit(node.Argument);
+        //     var lengthOrCount = _bound.MethodInfo(countAccessor);
 
-            return CSharpExprFactory("IndexerAccess", receiver, argument, lengthOrCount, _bound.MethodInfo(indexer));
-        }
+        //     var indexer = node.PatternSymbol switch
+        //     {
+        //         PropertySymbol p => GetAccessor(p),
+        //         MethodSymbol m => m,
+        //         _ => throw ExceptionUtilities.UnexpectedValue(node.PatternSymbol)
+        //     };
+
+        //     return CSharpExprFactory("IndexerAccess", receiver, argument, lengthOrCount, _bound.MethodInfo(indexer));
+        // }
 
         private BoundExpression VisitTupleBinaryOperator(BoundTupleBinaryOperator node)
         {
