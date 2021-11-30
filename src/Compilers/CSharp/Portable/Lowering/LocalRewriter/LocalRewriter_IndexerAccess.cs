@@ -69,14 +69,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                     argumentNames,
                     refKinds);
             }
-            else
-            {
-                return _dynamicFactory.MakeDynamicGetIndex(
-                    MakeDynamicIndexerAccessReceiver(node, loweredReceiver),
-                    loweredArguments,
-                    argumentNames,
-                    refKinds).ToExpression();
-            }
+
+            return _dynamicFactory.MakeDynamicGetIndex(
+                MakeDynamicIndexerAccessReceiver(node, loweredReceiver),
+                loweredArguments,
+                argumentNames,
+                refKinds).ToExpression();
         }
 
         public override BoundNode VisitIndexerAccess(BoundIndexerAccess node)
