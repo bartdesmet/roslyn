@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Roslyn.Utilities;
@@ -79,7 +80,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression Visit(BoundStatement node)
+        [return: NotNullIfNotNull("node")]
+        private BoundExpression? Visit(BoundStatement? node)
         {
             if (node == null)
             {
@@ -293,19 +295,23 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 var leftType = node.Left.Type;
 
-                BoundExpression leftConversion = null;
-                if (node.LeftConversion.IsUserDefined)
+                var conversionLeft = BoundNode.GetConversion(node.LeftConversion, node.LeftPlaceholder);
+
+                BoundExpression? leftConversion = null;
+                if (conversionLeft.Method is not null)
                 {
-                    leftType = node.LeftConversion.Method.ReturnType;
-                    leftConversion = MakeConversionLambda(node.LeftConversion, leftType, leftType);
+                    leftType = conversionLeft.Method.ReturnType;
+                    leftConversion = MakeConversionLambda(conversionLeft, leftType, leftType);
                 }
 
-                BoundExpression finalConversion = null;
-                if (node.FinalConversion.IsUserDefined)
+                var conversionFinal = BoundNode.GetConversion(node.FinalConversion, node.FinalPlaceholder);
+
+                BoundExpression? finalConversion = null;
+                if (conversionFinal.Method is not null)
                 {
                     var operationResultType = leftType; // TODO: check if this is the right type to use here
-                    var resultType = node.FinalConversion.Method.ReturnType;
-                    finalConversion = MakeConversionLambda(node.FinalConversion, operationResultType, resultType);
+                    var resultType = conversionFinal.Method.ReturnType;
+                    finalConversion = MakeConversionLambda(conversionFinal, operationResultType, resultType);
                 }
 
                 BoundExpression[] args;
@@ -424,12 +430,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitSequencePoint(BoundSequencePoint node)
         {
-            return Visit(node.StatementOpt);
+            // REVIEW: Nullability.
+            return Visit(node.StatementOpt!);
         }
 
         private BoundExpression VisitSequencePointWithSpan(BoundSequencePointWithSpan node)
         {
-            return Visit(node.StatementOpt);
+            // REVIEW: Nullability.
+            return Visit(node.StatementOpt!);
         }
 
         private BoundExpression VisitNoOp(BoundNoOpStatement node)
@@ -453,7 +461,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             var locals = PushLocals(node.Locals);
 
-            BoundStatement lastStmt = null;
+            BoundStatement? lastStmt = null;
 
             var builder = ArrayBuilder<BoundExpression>.GetInstance();
             foreach (var stmt in Flatten(node.Statements))
@@ -466,7 +474,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             PopLocals(node.Locals);
 
-            BoundLocal returnLabel = null;
+            BoundLocal? returnLabel = null;
 
             if (isTopLevel)
             {
@@ -570,7 +578,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private IEnumerable<BoundStatement> GetStatements(BoundStatement statement)
+        private IEnumerable<BoundStatement> GetStatements(BoundStatement? statement)
         {
             // TODO: flatten without recursion
             if (statement != null)
@@ -645,7 +653,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitReturn(BoundReturnStatement node)
         {
-            // TODO: check node.WasCompilerGenerated to omit when user didn't write it
+            // TODO: Check node.WasCompilerGenerated to omit separate node when user didn't write a return statement.
+            // REVIEW: The use of a return label is unnatural for C# expression trees (unlike for the reduction/lowering target).
 
             var exprOpt = node.ExpressionOpt;
             var returnLabel = CurrentLambdaInfo.EnsureReturnLabel(exprOpt?.Type);
@@ -816,15 +825,16 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             // TODO
             // node.AwaitOpt
-            // node.Checked
             // node.DeconstructionOpt
             // node.EnumeratorInfoOpt
             // node.IterationErrorExpressionOpt
 
-            if (node.EnumeratorInfoOpt != null && node.ElementConversion.IsUserDefined)
+            var elementConversion = BoundNode.GetConversion(node.ElementConversion, node.ElementPlaceholder);
+
+            if (node.EnumeratorInfoOpt != null && elementConversion.IsUserDefined)
             {
                 TypeSymbol lambdaParamType = node.EnumeratorInfoOpt.ElementType;
-                var conversion = MakeConversionLambda(node.ElementConversion, lambdaParamType, node.IterationVariableType.Type);
+                var conversion = MakeConversionLambda(elementConversion, lambdaParamType, node.IterationVariableType.Type);
                 return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion);
             }
 
@@ -832,7 +842,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
         }
 
-        private IEnumerable<BoundExpression> VisitStatements(BoundStatement node)
+        private IEnumerable<BoundExpression> VisitStatements(BoundStatement? node)
         {
             if (node == null)
             {
@@ -887,9 +897,16 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression VisitUsing(BoundUsingStatement node)
         {
             // REVIEW: Locals
-            // REVIEW: IDisposableConversion
-            // TODO: DisposeMethodOpt (pattern-based in C# 8.0)
-            // TODO: AwaitOpt (await using in C# 8.0)
+
+            if (node.PatternDisposeInfoOpt is not null)
+            {
+                throw new NotImplementedException("TODO");
+            }
+
+            if (node.AwaitOpt is not null)
+            {
+                throw new NotImplementedException("TODO");
+            }
 
             if (node.ExpressionOpt != null)
             {
@@ -900,6 +917,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
             else
             {
+                Debug.Assert(node.DeclarationsOpt != null); // REVIEW
+
                 var decls = node.DeclarationsOpt.LocalDeclarations;
                 var n = decls.Length;
 
@@ -967,6 +986,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
             else
             {
+                Debug.Assert(node.FinallyBlockOpt != null);
                 var @finally = Visit(node.FinallyBlockOpt);
                 return CSharpStmtFactory("TryFinally", body, @finally);
             }
@@ -983,16 +1003,19 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var body = Visit(node.Body);
                 var filter = Visit(node.ExceptionFilterOpt);
 
-                if (node.ExceptionSourceOpt.Kind != BoundKind.Local)
+                if (node.ExceptionSourceOpt is not null)
                 {
-                    throw new NotImplementedException("TODO");
-                }
-
-                var local = (BoundLocal)node.ExceptionSourceOpt;
-
-                if (local.LocalSymbol.DeclarationKind != LocalDeclarationKind.CatchVariable)
-                {
-                    throw new NotImplementedException("TODO");
+                    if (node.ExceptionSourceOpt is BoundLocal local)
+                    {
+                        if (local.LocalSymbol.DeclarationKind != LocalDeclarationKind.CatchVariable)
+                        {
+                            throw new NotImplementedException("TODO");
+                        }
+                    }
+                    else
+                    {
+                        throw new NotImplementedException("TODO");
+                    }
                 }
 
                 var variable = locals.ToImmutableAndFree()[0]; // REVIEW
@@ -1083,11 +1106,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             private readonly ArrayBuilder<BoundExpression> _initializers;
             private readonly Stack<LoopInfo> _loops = new Stack<LoopInfo>();
             private readonly Stack<BreakInfo> _breaks = new Stack<BreakInfo>();
-            private readonly Stack<LabelSymbol> _defaultLabels = new Stack<LabelSymbol>();
+            private readonly Stack<LabelSymbol?> _defaultLabels = new Stack<LabelSymbol?>();
             private readonly Dictionary<LabelSymbol, BoundLocal> _labels = new Dictionary<LabelSymbol, BoundLocal>();
             private readonly Stack<ReceiverInfo> _receivers = new Stack<ReceiverInfo>();
 
-            private BoundLocal _returnLabelTarget;
+            private BoundLocal? _returnLabelTarget;
 
             public LambdaCompilationInfo(ExpressionLambdaRewriter parent, ArrayBuilder<LocalSymbol> locals, ArrayBuilder<BoundExpression> initializers)
             {
@@ -1096,7 +1119,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 _initializers = initializers;
             }
 
-            public BoundLocal EnsureReturnLabel(TypeSymbol type)
+            public BoundLocal EnsureReturnLabel(TypeSymbol? type)
             {
                 if (_returnLabelTarget == null)
                 {
@@ -1123,7 +1146,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             public bool HasReturnLabel => _returnLabelTarget != null;
 
-            public BoundLocal ReturnLabel => _returnLabelTarget;
+            public BoundLocal? ReturnLabel => _returnLabelTarget;
 
             internal void AddLocal(LocalSymbol local)
             {
@@ -1145,11 +1168,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var continueLabelLocal = CreateLabelTargetLocal(continueLabelLocalSymbol);
                 AddLabelInitializer(continueLabelLocal, _parent.CSharpStmtFactory("Label"));
 
-                var loopInfo = new LoopInfo
-                {
-                    BreakLabel = breakLabelLocal,
-                    ContinueLabel = continueLabelLocal,
-                };
+                var loopInfo = new LoopInfo(breakLabelLocal, continueLabelLocal);
 
                 _loops.Push(loopInfo);
             }
@@ -1169,10 +1188,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var breakLabelLocal = CreateLabelTargetLocal(breakLabelLocalSymbol);
                 AddLabelInitializer(breakLabelLocal, _parent.CSharpStmtFactory("Label"));
 
-                var breakInfo = new BreakInfo
-                {
-                    BreakLabel = breakLabelLocal,
-                };
+                var breakInfo = new BreakInfo(breakLabelLocal);
 
                 _breaks.Push(breakInfo);
 
@@ -1186,7 +1202,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             // TODO: Revamp switch and parameterize it by the label expression (rather than having "GotoDefault")
 
-            internal void PushSwitchDefaultLabel(BoundSwitchLabel defaultLabel)
+            internal void PushSwitchDefaultLabel(BoundSwitchLabel? defaultLabel)
             {
                 _defaultLabels.Push(defaultLabel?.Label);
             }
@@ -1198,7 +1214,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             internal BoundExpression ClosestBreak => _breaks.Peek().BreakLabel;
             internal BoundExpression ClosestLoopContinue => _loops.Peek().ContinueLabel;
-            internal LabelSymbol ClosestSwitchDefaultLabel => _defaultLabels.Count > 0 ? _defaultLabels.Peek() : null;
+            internal LabelSymbol? ClosestSwitchDefaultLabel => _defaultLabels.Count > 0 ? _defaultLabels.Peek() : null;
 
             private LocalSymbol CreateLabelTargetLocalSymbol()
             {
@@ -1231,7 +1247,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return labelLocal;
             }
 
-            internal bool TryGetLabel(LabelSymbol label, out BoundLocal target)
+            internal bool TryGetLabel(LabelSymbol label, [NotNullWhen(true)] out BoundLocal? target)
             {
                 return _labels.TryGetValue(label, out target);
             }
@@ -1263,16 +1279,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        class LoopInfo
-        {
-            public BoundExpression BreakLabel { get; set; }
-            public BoundExpression ContinueLabel { get; set; }
-        }
+        record LoopInfo(BoundExpression BreakLabel, BoundExpression ContinueLabel);
 
-        class BreakInfo
-        {
-            public BoundExpression BreakLabel { get; set; }
-        }
+        record BreakInfo(BoundExpression BreakLabel);
 
         class ReceiverInfo
         {
@@ -1289,7 +1298,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            private BoundLocal _local;
+            private BoundLocal? _local;
         }
     }
 }

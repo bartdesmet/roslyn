@@ -587,7 +587,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public BoundUnaryOperator Unary(UnaryOperatorKind kind, TypeSymbol type, BoundExpression operand, MethodSymbol? method = null)
         {
-            return new BoundUnaryOperator(this.Syntax, kind, operand, ConstantValue.NotAvailable, method, LookupResultKind.Viable, type) { WasCompilerGenerated = true };
+            return new BoundUnaryOperator(this.Syntax, kind, operand, ConstantValue.NotAvailable, method, constrainedToTypeOpt: null, LookupResultKind.Viable, type) { WasCompilerGenerated = true };
         }
 
         public BoundTupleBinaryOperator TupleBinary(BinaryOperatorKind kind, TypeSymbol type, BoundExpression left, BoundExpression right, TupleBinaryOperatorInfo.Multiple operators)

@@ -429,7 +429,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (_inExpressionLambda)
             {
                 var operand = VisitExpression(node.Operand);
-                return node.Update(node.OperatorKind, operand, node.MethodOpt, node.OperandConversion, node.ResultConversion, node.ResultKind, node.Type);
+                // REVIEW: No visit of OperandConversion or ResultConversion; we don't have placeholder substitutions here.
+                return node.Update(node.OperatorKind, operand, node.MethodOpt, node.ConstrainedToTypeOpt, node.OperandPlaceholder, node.OperandConversion, node.ResultPlaceholder, node.ResultConversion, node.ResultKind, node.Type);
             }
 
             bool isPrefix = IsPrefix(node);

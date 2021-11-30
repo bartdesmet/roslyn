@@ -18,7 +18,6 @@ namespace Microsoft.CodeAnalysis.CSharp
     internal partial class ExpressionLambdaRewriter // this is like a bound tree rewriter, but only handles a small subset of node kinds
     {
         private readonly TypeCompilationState _compilationState;
-        private readonly DiagnosticBag _diagnostics;
         private readonly SyntheticBoundNodeFactory _bound;
         private readonly TypeMap _typeMap;
         private readonly Dictionary<ParameterSymbol, BoundExpression> _parameterMap = new Dictionary<ParameterSymbol, BoundExpression>();
@@ -148,7 +147,6 @@ namespace Microsoft.CodeAnalysis.CSharp
         private ExpressionLambdaRewriter(TypeCompilationState compilationState, TypeMap typeMap, SyntaxNode node, int recursionDepth, BindingDiagnosticBag diagnostics)
         {
             _compilationState = compilationState;
-            _diagnostics = diagnostics;
             _bound = new SyntheticBoundNodeFactory(null, compilationState.Type, node, compilationState, diagnostics);
             _ignoreAccessibility = compilationState.ModuleBuilderOpt.IgnoreAccessibility;
             _int32Type = _bound.SpecialType(SpecialType.System_Int32);
@@ -1990,7 +1988,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                     if (fillin.Alignment != null && !fillin.Alignment.HasErrors)
                     {
-                        if (!Binder.TryGetSpecialTypeMember<MethodSymbol>(_compilationState.Compilation, SpecialMember.System_Nullable_T__ctor, fillin.Alignment.Syntax, _diagnostics, out var ctor))
+                        if (!Binder.TryGetSpecialTypeMember<MethodSymbol>(_compilationState.Compilation, SpecialMember.System_Nullable_T__ctor, fillin.Alignment.Syntax, Diagnostics, out var ctor))
                         {
                             Debug.Assert(false);
                         }
@@ -2289,7 +2287,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             //           Lambda: (int x) => (double)x  // convert y
             //
 
-            BoundExpression MakeConversions(ImmutableArray<Conversion> elementConversions, ImmutableArray<TypeSymbol> sourceTypes, ImmutableArray<TypeSymbol> destTypes)
+            BoundExpression makeConversions(ImmutableArray<Conversion> elementConversions, ImmutableArray<TypeSymbol> sourceTypes, ImmutableArray<TypeSymbol> destTypes)
             {
                 var builder = ArrayBuilder<BoundExpression>.GetInstance(elementConversions.Length);
 
@@ -2322,7 +2320,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var sourceTypes = fromType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
                 var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
 
-                var conversions = MakeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
+                var conversions = makeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
 
                 return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), conversions);
             }
@@ -2333,13 +2331,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var sourceTypes = conversion.DeconstructionInfo.OutputPlaceholders.SelectAsArray(t => t.Type);
                 var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
 
-                var deconstruct = MakeDeconstructLambda(conversion.DeconstructionInfo);
+                var deconstruct = makeDeconstructLambda(conversion.DeconstructionInfo);
 
-                var conversions = MakeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
+                var conversions = makeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
 
                 return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), deconstruct, conversions);
 
-                BoundExpression MakeDeconstructLambda(DeconstructMethodInfo info)
+                BoundExpression makeDeconstructLambda(DeconstructMethodInfo info)
                 {
                     var replacements = new Dictionary<BoundDeconstructValuePlaceholder, BoundExpression>();
                     var locals = ImmutableArray.CreateBuilder<LocalSymbol>(1 + info.OutputPlaceholders.Length);

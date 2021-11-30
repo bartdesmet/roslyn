@@ -41,7 +41,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var rewrittenDeconstruction = (BoundForEachDeconstructStep?)Visit(node.DeconstructionOpt); // REVIEW
                 var rewrittenBody = VisitStatement(node.Body);
 
-                return node.Update(node.EnumeratorInfoOpt, node.ElementConversion, node.IterationVariableType, node.IterationVariables, rewrittenIterationErrorExpression, rewrittenExpression, rewrittenDeconstruction, node.AwaitOpt, rewrittenBody!, node.Checked, node.BreakLabel, node.ContinueLabel);
+                // REVIEW: No visit of ElementConversion; we don't have placeholder substitutions here.
+
+                return node.Update(node.EnumeratorInfoOpt, node.ElementPlaceholder, node.ElementConversion, node.IterationVariableType, node.IterationVariables, rewrittenIterationErrorExpression, rewrittenExpression, rewrittenDeconstruction, node.AwaitOpt, rewrittenBody!, node.BreakLabel, node.ContinueLabel);
             }
 
             BoundExpression collectionExpression = GetUnconvertedCollectionExpression(node, out _);

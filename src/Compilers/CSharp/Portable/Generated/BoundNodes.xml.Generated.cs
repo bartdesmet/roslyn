@@ -14395,7 +14395,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicMemberAccess updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(receiver, name, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14415,7 +14415,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicIndexAccess updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(receiver, arguments, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14435,7 +14435,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicInvocation updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(receiver, arguments, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14458,7 +14458,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicCall updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(receiver, typeReceiver, name, typeArguments, arguments, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14478,7 +14478,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicNew updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(typeReceiver, arguments, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14498,7 +14498,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicUnary updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(expressionType, operand, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14519,7 +14519,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicBinary updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(expressionType, left, right, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14539,7 +14539,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression context = (BoundExpression)this.Visit(node.Context);
             BoundQuotedDynamicConvert updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
                 updatedNode = node.Update(operand, targetType, flags, context, infoAndType.Type);
                 updatedNode.TopLevelNullability = infoAndType.Info;
@@ -14558,9 +14558,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression flags = (BoundExpression)this.Visit(node.Flags);
             BoundQuotedDynamicArgument updatedNode;
 
-            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol Type) infoAndType))
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
             {
-                updatedNode = node.Update(expression, name, flags, infoAndType.Type);
+                updatedNode = node.Update(expression, name, flags, infoAndType.Type!);
                 updatedNode.TopLevelNullability = infoAndType.Info;
             }
             else

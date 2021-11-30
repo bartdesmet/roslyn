@@ -26,7 +26,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (_inExpressionLambda)
             {
                 var loweredLeft = VisitExpression(node.Left);
-                return node.Update(node.Operator, loweredLeft, loweredRight, node.LeftConversion, node.FinalConversion, node.ResultKind, node.Type);
+                // REVIEW: No visit of LeftConversion and FinalConversion; we don't have placeholder substitutions here.
+                return node.Update(node.Operator, loweredLeft, loweredRight, node.LeftPlaceholder, node.LeftConversion, node.FinalPlaceholder, node.FinalConversion, node.ResultKind, node.Type);
             }
 
             var temps = ArrayBuilder<LocalSymbol>.GetInstance();

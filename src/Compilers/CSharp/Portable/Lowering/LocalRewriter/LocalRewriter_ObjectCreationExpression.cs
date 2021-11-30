@@ -82,7 +82,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var type = node.Constructor.ContainingType.TupleUnderlyingType ?? node.Constructor.ContainingType; // REVIEW: Tuple creation as separate node type?
                 var init = MakeObjectCreationInitializerForExpressionTree(node.InitializerExpressionOpt);
 
-                rewrittenObjectCreation = node.Update(ctor, rewrittenArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, node.Expanded, node.ArgsToParamsOpt, node.ConstantValueOpt, init, node.BinderOpt, type);
+                rewrittenObjectCreation = node.Update(ctor, node.ConstructorsGroup, rewrittenArguments, node.ArgumentNamesOpt, node.ArgumentRefKindsOpt, node.Expanded, node.ArgsToParamsOpt, node.DefaultArguments, node.ConstantValueOpt, init, node.WasTargetTyped, type);
 
                 if (node.Type.IsInterfaceType())
                 {

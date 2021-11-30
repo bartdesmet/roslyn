@@ -299,7 +299,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         value = MakeConversionNode(value, _compilation.ObjectType, @checked: false);
                     }
 
-                    expressions.Add(fillin.Update(VisitExpression(value), fillin.Alignment, fillin.Format, fillin.Type));
+                    expressions.Add(fillin.Update(VisitExpression(value), fillin.Alignment, fillin.Format, fillin.IsInterpolatedStringHandlerAppendCall));
                 }
                 else
                 {
@@ -309,7 +309,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
-            return node.Update(expressions.ToImmutable(), node.Type);
+            return node.Update(node.InterpolationData, expressions.ToImmutable(), node.ConstantValueOpt, node.Type);
         }
 
         public override BoundNode VisitInterpolatedString(BoundInterpolatedString node)
