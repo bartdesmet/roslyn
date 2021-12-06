@@ -7817,9 +7817,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                     result = TryImplicitConversionToArrayIndex(index, WellKnownType.System_Range, node, diagnostics);
                     if (result is object)
                     {
+                        indexOrRangeWellknownType = WellKnownType.System_Range;
+
                         if (!InExpressionTree)
                         {
-                            indexOrRangeWellknownType = WellKnownType.System_Range;
                             // This member is needed for lowering and should produce an error if not present
                             _ = GetWellKnownTypeMember(
                                 Compilation,
@@ -7831,10 +7832,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else
                 {
+                    indexOrRangeWellknownType = WellKnownType.System_Index;
+
                     if (!InExpressionTree)
                     {
-                        indexOrRangeWellknownType = WellKnownType.System_Index;
-
                         // This member is needed for lowering and should produce an error if not present
                         _ = GetWellKnownTypeMember(
                             Compilation,

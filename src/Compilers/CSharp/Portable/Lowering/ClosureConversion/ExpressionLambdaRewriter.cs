@@ -439,9 +439,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.RangeExpression:
                     return VisitRange((BoundRangeExpression)node);
 
-                // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
-                //case BoundKind.IndexOrRangePatternIndexerAccess:
-                //    return VisitIndexOrRangePatternIndexerAccess((BoundIndexOrRangePatternIndexerAccess)node);
+                case BoundKind.ImplicitIndexerAccess:
+                    return VisitImplicitIndexerAccess((BoundImplicitIndexerAccess)node);
 
                 case BoundKind.TupleLiteral:
                     return VisitTupleLiteral((BoundTupleLiteral)node);
@@ -2030,31 +2029,59 @@ namespace Microsoft.CodeAnalysis.CSharp
             return CSharpExprFactory("Range", Visit(node.LeftOperandOpt) ?? _bound.Null(ExpressionType), Visit(node.RightOperandOpt) ?? _bound.Null(ExpressionType), _bound.MethodInfo(node.MethodOpt, useMethodBase: true), _bound.Typeof(node.Type));
         }
 
-        // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
+        private BoundExpression VisitImplicitIndexerAccess(BoundImplicitIndexerAccess node)
+        {
+            //
+            // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
+            //
+            // NB: This was temporarily restored under the assumption we only get here outside the context of
+            //     pattern expressions (which are not yet supported in the expression trees). Once we add
+            //     support for these, we should revisit this.
+            //
+            
+            static MethodSymbol getAccessor(PropertySymbol p)
+            {
+                return p.GetOwnOrInheritedGetMethod() ?? p.GetOwnOrInheritedSetMethod();
+            }
 
-        // private BoundExpression VisitIndexOrRangePatternIndexerAccess(BoundIndexOrRangePatternIndexerAccess node)
-        // {
-        //     MethodSymbol GetAccessor(PropertySymbol p)
-        //     {
-        //         return p.GetOwnOrInheritedGetMethod() ?? p.GetOwnOrInheritedSetMethod();
-        //     }
+            //
+            // REVIEW: Check whether BoundArrayAccess should end up here.
+            //
 
-        //     var countProperty = node.LengthOrCountProperty;
-        //     var countAccessor = GetAccessor(countProperty);
+            if (node.IndexerOrSliceAccess is BoundArrayAccess arrayAccess && node.LengthOrCountAccess is BoundArrayLength)
+            {
+                var rewrittenArrayAccess = arrayAccess.Update(node.Receiver, ImmutableArray.Create(node.Argument), arrayAccess.Type);
+                return VisitArrayAccess(rewrittenArrayAccess);
+            }
 
-        //     var receiver = Visit(node.Receiver);
-        //     var argument = Visit(node.Argument);
-        //     var lengthOrCount = _bound.MethodInfo(countAccessor);
+            var receiver = Visit(node.Receiver);
+            var argument = Visit(node.Argument);
 
-        //     var indexer = node.PatternSymbol switch
-        //     {
-        //         PropertySymbol p => GetAccessor(p),
-        //         MethodSymbol m => m,
-        //         _ => throw ExceptionUtilities.UnexpectedValue(node.PatternSymbol)
-        //     };
+            //
+            // May be this[int], Slice(int, int), or Substring(int, int).
+            //
+            // TODO: Assert the receiver is ReceiverPlaceholder.
+            //
+            var indexer = node.IndexerOrSliceAccess switch
+            {
+                BoundCall c => c.Method,
+                BoundIndexerAccess i => getAccessor(i.Indexer),
+                _ => throw ExceptionUtilities.UnexpectedValue(node.IndexerOrSliceAccess.Kind)
+            };
 
-        //     return CSharpExprFactory("IndexerAccess", receiver, argument, lengthOrCount, _bound.MethodInfo(indexer));
-        // }
+            //
+            // TODO: Assert the receiver is ReceiverPlaceholder.
+            //
+            var countAccessor = node.LengthOrCountAccess switch
+            {
+                BoundPropertyAccess p => getAccessor(p.PropertySymbol),
+                _ => throw ExceptionUtilities.UnexpectedValue(node.LengthOrCountAccess.Kind)
+            };
+
+            var lengthOrCount = _bound.MethodInfo(countAccessor);
+
+            return CSharpExprFactory("IndexerAccess", receiver, argument, lengthOrCount, _bound.MethodInfo(indexer));
+        }
 
         private BoundExpression VisitTupleBinaryOperator(BoundTupleBinaryOperator node)
         {

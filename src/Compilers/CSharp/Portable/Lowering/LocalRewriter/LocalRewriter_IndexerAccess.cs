@@ -185,31 +185,61 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode? VisitListPatternIndexPlaceholder(BoundListPatternIndexPlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             throw ExceptionUtilities.Unreachable;
         }
 
         public override BoundNode? VisitListPatternReceiverPlaceholder(BoundListPatternReceiverPlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             throw ExceptionUtilities.Unreachable;
         }
 
         public override BoundNode? VisitSlicePatternRangePlaceholder(BoundSlicePatternRangePlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             throw ExceptionUtilities.Unreachable;
         }
 
         public override BoundNode? VisitSlicePatternReceiverPlaceholder(BoundSlicePatternReceiverPlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             throw ExceptionUtilities.Unreachable;
         }
 
         public override BoundNode? VisitImplicitIndexerReceiverPlaceholder(BoundImplicitIndexerReceiverPlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             return PlaceholderReplacement(node);
         }
 
         public override BoundNode? VisitImplicitIndexerValuePlaceholder(BoundImplicitIndexerValuePlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                return node;
+            }
+
             return PlaceholderReplacement(node);
         }
 
@@ -220,12 +250,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitImplicitIndexerAccess(BoundImplicitIndexerAccess node, bool isLeftOfAssignment)
         {
-            // TODO: Revisit due to changes made in https://github.com/dotnet/roslyn/pull/57318.
-
-            // if (_inExpressionLambda)
-            // {
-            //     return node.Update(VisitExpression(node.Receiver), node.LengthOrCountProperty, node.PatternSymbol, VisitExpression(node.Argument), node.Type);
-            // }
+            if (_inExpressionLambda)
+            {
+                return node.Update(VisitExpression(node.Receiver), VisitExpression(node.Argument), VisitExpression(node.LengthOrCountAccess), node.ReceiverPlaceholder, VisitExpression(node.IndexerOrSliceAccess), node.ArgumentPlaceholders, node.Type);
+            }
 
             if (TypeSymbol.Equals(
                 node.Argument.Type,
