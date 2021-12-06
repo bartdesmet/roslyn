@@ -435,7 +435,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             for (int i = 0; i < arguments.Length; i++)
             {
                 var argument = arguments[i];
-                if (argument is BoundDiscardExpression discard)
+                if (!_inExpressionLambda && argument is BoundDiscardExpression discard)
                 {
                     ensureTempTrackingSetup(ref temps, ref argumentsAssignedToTemp);
                     visitedArgumentsBuilder.Add(_factory.MakeTempForDiscard(discard, temps));
@@ -589,7 +589,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             //
             // If none of those are the case then we can just take an early out.
 
-            Debug.Assert(!_inExpressionLambda && rewrittenArguments.All(arg => arg is not BoundDiscardExpression), "Discards should have been substituted by VisitArguments");
+            Debug.Assert(_inExpressionLambda || rewrittenArguments.All(arg => arg is not BoundDiscardExpression), "Discards should have been substituted by VisitArguments");
             temps ??= ArrayBuilder<LocalSymbol>.GetInstance();
 
             ImmutableArray<ParameterSymbol> parameters = methodOrIndexer.GetParameters();
