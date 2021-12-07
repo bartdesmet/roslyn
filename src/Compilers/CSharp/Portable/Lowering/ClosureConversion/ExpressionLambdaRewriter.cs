@@ -140,6 +140,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private NamedTypeSymbol _MemberInitializerType;
+
+        public NamedTypeSymbol MemberInitializerType => _MemberInitializerType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_MemberInitializer);
+
+
         private readonly NamedTypeSymbol _IEnumerableType;
 
         private BindingDiagnosticBag Diagnostics { get { return _bound.Diagnostics; } }
@@ -451,6 +456,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.DeconstructionAssignmentOperator:
                     return VisitDeconstructionAssignmentOperator((BoundDeconstructionAssignmentOperator)node);
+
+                case BoundKind.WithExpression:
+                    return VisitWithExpression((BoundWithExpression)node);
 
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
@@ -1684,6 +1692,36 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private BoundExpression VisitInitializerForWithExpression(BoundObjectInitializerExpressionBase node, bool isAnonymousType)
+        {
+            if (node.Kind != BoundKind.ObjectInitializerExpression)
+            {
+                throw ExceptionUtilities.UnexpectedValue(node.Kind);
+            }
+
+            var oi = (BoundObjectInitializerExpression)node;
+            var builder = ArrayBuilder<BoundExpression>.GetInstance();
+            foreach (BoundAssignmentOperator a in oi.Initializers)
+            {
+                var sym = ((BoundObjectInitializerMember)a.Left).MemberSymbol;
+
+                // An error is reported in diagnostics pass when a dynamic object initializer is encountered in an ET:
+                Debug.Assert((object)sym != null);
+
+                var value = VisitInitializer(a.Right, out var elementKind);
+
+                if (elementKind != InitializerKind.Expression)
+                {
+                    throw ExceptionUtilities.UnexpectedValue(elementKind);
+                }
+
+                var left = isAnonymousType ? InitializerMemberGetter(sym) : InitializerMemberSetter(sym);
+                builder.Add(CSharpExprFactory("MemberInitializer", left, value));
+            }
+
+            return _bound.ArrayOrEmpty(MemberInitializerType, builder.ToImmutableAndFree());
+        }
+
         private BoundExpression VisitObjectCreationExpression(BoundObjectCreationExpression node)
         {
             return VisitObjectCreationContinued(VisitObjectCreationExpressionInternal(node), node.InitializerExpressionOpt);
@@ -1760,6 +1798,42 @@ namespace Microsoft.CodeAnalysis.CSharp
                         return ExprFactory("New", ctor, args);
                     }
                 }
+            }
+        }
+
+        private BoundExpression VisitWithExpression(BoundWithExpression node)
+        {
+            var receiver = Visit(node.Receiver);
+
+            if (node.Type.IsAnonymousType)
+            {
+                Debug.Assert(node.CloneMethod is null);
+
+                var init = VisitInitializerForWithExpression(node.InitializerExpression, isAnonymousType: true);
+
+                var properties = getAnonymousTypeProperties((AnonymousTypeManager.AnonymousTypePublicSymbol)node.Type);
+
+                return CSharpExprFactory("With", receiver, properties, init);
+            }
+            else
+            {
+                var init = VisitInitializerForWithExpression(node.InitializerExpression, isAnonymousType: false);
+
+                return node.CloneMethod is null
+                    ? CSharpExprFactory("With", receiver, init)
+                    : CSharpExprFactory("With", receiver, _bound.MethodInfo(node.CloneMethod), init);
+            }
+
+            BoundExpression getAnonymousTypeProperties(AnonymousTypeManager.AnonymousTypePublicSymbol anonymousType)
+            {
+                var membersBuilder = ArrayBuilder<BoundExpression>.GetInstance(anonymousType.Properties.Length);
+
+                foreach (var property in anonymousType.Properties)
+                {
+                    membersBuilder.Add(_bound.MethodInfo(property.GetMethod));
+                }
+
+                return _bound.ArrayOrEmpty(MemberInfoType, membersBuilder.ToImmutableAndFree());
             }
         }
 

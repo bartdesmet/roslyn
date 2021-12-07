@@ -156,6 +156,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             BoundExpression rewrittenReceiver = VisitExpression(receiver);
 
+            if (_inExpressionLambda)
+            {
+                var init = MakeObjectCreationInitializerForExpressionTree(withExpr.InitializerExpression);
+                return withExpr.Update(rewrittenReceiver, withExpr.CloneMethod, init, withExpr.Type);
+            }
+
             if (type.IsAnonymousType)
             {
                 var anonymousType = (AnonymousTypeManager.AnonymousTypePublicSymbol)type;
