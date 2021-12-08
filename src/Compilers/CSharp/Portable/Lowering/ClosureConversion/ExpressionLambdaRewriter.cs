@@ -646,24 +646,25 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitAwaitExpression(BoundAwaitExpression node, bool resultDiscarded = false)
         {
-            BoundExpression info;
+            return CSharpExprFactory("Await", Visit(node.Expression), VisitAwaitInfo(node.AwaitableInfo, resultDiscarded));
+        }
 
-            if (node.AwaitableInfo.IsDynamic)
+        private BoundExpression VisitAwaitInfo(BoundAwaitableInfo node, bool resultDiscarded = false)
+        {
+            if (node.IsDynamic)
             {
                 var ctx = _bound.TypeofDynamicOperationContextType();
 
-                info = DynamicCSharpExprFactory("DynamicAwaitInfo", ctx, _bound.Literal(resultDiscarded));
+                return DynamicCSharpExprFactory("DynamicAwaitInfo", ctx, _bound.Literal(resultDiscarded));
             }
             else
             {
-                var getAwaiter = MakeGetAwaiterLambda(node.AwaitableInfo);
-                var getIsCompleted = _bound.MethodInfo(node.AwaitableInfo.IsCompleted.GetOwnOrInheritedGetMethod());
-                var getResult = _bound.MethodInfo(node.AwaitableInfo.GetResult);
+                var getAwaiter = MakeGetAwaiterLambda(node);
+                var getIsCompleted = _bound.MethodInfo(node.IsCompleted.GetOwnOrInheritedGetMethod());
+                var getResult = _bound.MethodInfo(node.GetResult);
 
-                info = CSharpExprFactory("AwaitInfo", getAwaiter, getIsCompleted, getResult);
-            }
-
-            return CSharpExprFactory("Await", Visit(node.Expression), info);
+                return CSharpExprFactory("AwaitInfo", getAwaiter, getIsCompleted, getResult);
+            }            
         }
 
         private BoundExpression VisitAwaitableValuePlaceholder(BoundAwaitableValuePlaceholder node)
