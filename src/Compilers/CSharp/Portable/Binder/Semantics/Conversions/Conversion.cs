@@ -152,8 +152,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             // 1) when rewriting MethodGroup conversions and the method gets substituted.
             // 2) when lowering IntPtr conversion (a compat-related conversion which becomes a kind of a user-defined conversion)
             // 3) when rewriting user-defined conversions and the method gets substituted
+            // 4) when processing a deconstruction in an expression tree
             // in those cases it is ok to ignore existing _uncommonData.
-            Debug.Assert(_kind is ConversionKind.MethodGroup or ConversionKind.IntPtr or ConversionKind.ImplicitUserDefined or ConversionKind.ExplicitUserDefined);
+            Debug.Assert(_kind is ConversionKind.MethodGroup or ConversionKind.IntPtr or ConversionKind.ImplicitUserDefined or ConversionKind.ExplicitUserDefined or ConversionKind.Deconstruction);
 
             return new Conversion(this.Kind, conversionMethod, isExtensionMethod: IsExtensionMethod);
         }

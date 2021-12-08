@@ -1568,7 +1568,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression MakeConversionLambda(Conversion conversion, TypeSymbol fromType, TypeSymbol toType)
+        private BoundExpression MakeConversionLambda(TypeSymbol fromType, TypeSymbol toType, Func<BoundParameter, BoundExpression> makeConversion)
         {
             string parameterName = "p";
             ParameterSymbol lambdaParameter = _bound.SynthesizedParameter(fromType, parameterName);
@@ -1576,7 +1576,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var parameterReference = _bound.Local(param);
             var parameter = ExprFactory("Parameter", _bound.Typeof(fromType), _bound.Literal(parameterName));
             _parameterMap[lambdaParameter] = parameterReference;
-            var convertedValue = Visit(_bound.Convert(toType, _bound.Parameter(lambdaParameter), conversion));
+            var convertedValue = Visit(makeConversion(_bound.Parameter(lambdaParameter)));
             _parameterMap.Remove(lambdaParameter);
             var result = _bound.Sequence(
                 ImmutableArray.Create(param),
@@ -1586,6 +1586,33 @@ namespace Microsoft.CodeAnalysis.CSharp
                     convertedValue,
                     _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(parameterReference))));
             return result;
+        }
+
+        private BoundExpression MakeConversionLambda(Conversion conversion, TypeSymbol fromType, TypeSymbol toType)
+        {
+            return MakeConversionLambda(fromType, toType, p => _bound.Convert(toType, p, conversion));
+        }
+
+        private BoundExpression MakeConversionLambda(BoundValuePlaceholder placeholder, BoundExpression conversion)
+        {
+            return MakeConversionLambda(placeholder.Type, conversion.Type, p => (BoundExpression)new ValuePlaceholderSubstitutor(placeholder, p).Visit(conversion));
+        }
+
+        private sealed class ValuePlaceholderSubstitutor : BoundTreeRewriterWithStackGuard
+        {
+            private readonly BoundValuePlaceholder _placeholder;
+            private readonly BoundExpression _replacement;
+
+            public ValuePlaceholderSubstitutor(BoundValuePlaceholder placeholder, BoundExpression replacement)
+            {
+                _placeholder = placeholder;
+                _replacement = replacement;
+            }
+
+            public override BoundNode VisitValuePlaceholder(BoundValuePlaceholder node)
+            {
+                return node == _placeholder ? _replacement : node;
+            }
         }
 
         private BoundExpression InitializerMemberSetter(Symbol symbol)
@@ -2364,15 +2391,13 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             var left = Visit(node.Left, convertToExpressionType: false);
             var right = Visit(node.Right.Operand);
-            var conversion = VisitDeconstructionConversion(node.Right.Conversion, node.Right.Operand.Type, node.Left.Type);
+            var conversion = VisitDeconstructionConversion(node.Right.Conversion);
 
             return CSharpExprFactory("DeconstructionAssignment", _bound.Typeof(node.Type), left, right, conversion);
         }
 
-        private BoundExpression VisitDeconstructionConversion(Conversion conversion, TypeSymbol fromType, TypeSymbol toType)
+        private BoundExpression VisitDeconstructionConversion(Conversion conversion)
         {
-            Debug.Assert(conversion.Kind == ConversionKind.Deconstruction);
-
             //
             // E.g. (int a, (long x, double y)) = t where t is (int, Point)
             //
@@ -2389,26 +2414,26 @@ namespace Microsoft.CodeAnalysis.CSharp
             //           Lambda: (int x) => (double)x  // convert y
             //
 
-            BoundExpression makeConversions(ImmutableArray<Conversion> elementConversions, ImmutableArray<TypeSymbol> sourceTypes, ImmutableArray<TypeSymbol> destTypes)
+            BoundExpression makeConversions(ImmutableArray<(BoundValuePlaceholder placeholder, BoundExpression conversion)> elementConversions)
             {
                 var builder = ArrayBuilder<BoundExpression>.GetInstance(elementConversions.Length);
 
-                for (int i = 0, n = elementConversions.Length; i < n; i++)
+                foreach (var (placeholder, conversion) in elementConversions)
                 {
-                    var elementConversion = elementConversions[i];
+                    // REVIEW: placeholder and conversion will be null in case of an error. Do we get this far?
 
-                    BoundExpression conversionExpr;
-
-                    if (elementConversion.Kind == ConversionKind.Deconstruction)
+                    if (conversion is BoundConversion { Conversion.Kind: ConversionKind.Deconstruction } c)
                     {
-                        conversionExpr = VisitDeconstructionConversion(elementConversion, sourceTypes[i], destTypes[i]);
+                        // REVIEW: This approach to peeking inside the expression to find a nested deconstruction is brittle.
+
+                        Debug.Assert(c.Operand == placeholder);
+
+                        builder.Add(VisitDeconstructionConversion(c.Conversion));
                     }
                     else
                     {
-                        conversionExpr = CSharpExprFactory("Conversion", MakeConversionLambda(elementConversion, sourceTypes[i], destTypes[i]));
+                        builder.Add(CSharpExprFactory("Convert", MakeConversionLambda(placeholder, conversion)));
                     }
-
-                    builder.Add(conversionExpr);
                 }
 
                 return _bound.Array(CSharp_Expressions_ConversionType, builder.ToImmutableAndFree());
@@ -2416,28 +2441,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (conversion.DeconstructionInfo.IsDefault)
             {
-                Debug.Assert(fromType.IsTupleType);
-                Debug.Assert(toType.IsTupleType);
+                var conversions = makeConversions(conversion.DeconstructConversionInfo);
 
-                var sourceTypes = fromType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
-                var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
-
-                var conversions = makeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
-
-                return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), conversions);
+                return CSharpExprFactory("Deconstruct", conversions);
             }
             else
             {
-                Debug.Assert(toType.IsTupleType);
-
-                var sourceTypes = conversion.DeconstructionInfo.OutputPlaceholders.SelectAsArray(t => t.Type);
-                var destTypes = toType.TupleElementTypesWithAnnotations.SelectAsArray(t => t.Type);
-
                 var deconstruct = makeDeconstructLambda(conversion.DeconstructionInfo);
 
-                var conversions = makeConversions(conversion.UnderlyingConversions, sourceTypes, destTypes);
+                var conversions = makeConversions(conversion.DeconstructConversionInfo);
 
-                return CSharpExprFactory("Deconstruction", _bound.Typeof(fromType), _bound.Typeof(toType), deconstruct, conversions);
+                return CSharpExprFactory("Deconstruct", deconstruct, conversions);
 
                 BoundExpression makeDeconstructLambda(DeconstructMethodInfo info)
                 {
