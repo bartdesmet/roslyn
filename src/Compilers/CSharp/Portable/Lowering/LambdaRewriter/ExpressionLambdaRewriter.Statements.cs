@@ -16,69 +16,19 @@ namespace Microsoft.CodeAnalysis.CSharp
     internal partial class ExpressionLambdaRewriter
     {
         private NamedTypeSymbol _CSharpStatementType;
-        private NamedTypeSymbol CSharpStatementType
-        {
-            get
-            {
-                if ((object)_CSharpStatementType == null)
-                {
-                    _CSharpStatementType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpStatement);
-                }
-                return _CSharpStatementType;
-            }
-        }
+        private NamedTypeSymbol CSharpStatementType => _CSharpStatementType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpStatement);
 
         private NamedTypeSymbol _LabelTargetType;
-        private NamedTypeSymbol LabelTargetType
-        {
-            get
-            {
-                if ((object)_LabelTargetType == null)
-                {
-                    _LabelTargetType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_LabelTarget);
-                }
-                return _LabelTargetType;
-            }
-        }
+        private NamedTypeSymbol LabelTargetType => _LabelTargetType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_LabelTarget);
 
         private NamedTypeSymbol _CatchBlockType;
-        private NamedTypeSymbol CatchBlockType
-        {
-            get
-            {
-                if ((object)_CatchBlockType == null)
-                {
-                    _CatchBlockType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_CatchBlock);
-                }
-                return _CatchBlockType;
-            }
-        }
+        private NamedTypeSymbol CatchBlockType => _CatchBlockType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_CatchBlock);
 
         private NamedTypeSymbol _CSharpSwitchCaseType;
-        private NamedTypeSymbol CSharpSwitchCaseType
-        {
-            get
-            {
-                if ((object)_CSharpSwitchCaseType == null)
-                {
-                    _CSharpSwitchCaseType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
-                }
-                return _CSharpSwitchCaseType;
-            }
-        }
+        private NamedTypeSymbol CSharpSwitchCaseType => _CSharpSwitchCaseType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
 
         private NamedTypeSymbol _CSharpConditionalReceiverType;
-        private NamedTypeSymbol ConditionalReceiverType
-        {
-            get
-            {
-                if ((object)_CSharpConditionalReceiverType == null)
-                {
-                    _CSharpConditionalReceiverType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ConditionalReceiver);
-                }
-                return _CSharpConditionalReceiverType;
-            }
-        }
+        private NamedTypeSymbol ConditionalReceiverType => _CSharpConditionalReceiverType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ConditionalReceiver);
 
         [return: NotNullIfNotNull("node")]
         private BoundExpression? Visit(BoundStatement? node)
