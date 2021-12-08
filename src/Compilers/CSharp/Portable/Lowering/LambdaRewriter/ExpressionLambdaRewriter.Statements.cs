@@ -903,17 +903,26 @@ namespace Microsoft.CodeAnalysis.CSharp
                 throw new NotImplementedException("TODO");
             }
 
+            BoundExpression? awaitInfo = null;
+
             if (node.AwaitOpt is not null)
             {
-                throw new NotImplementedException("TODO");
+                awaitInfo = VisitAwaitInfo(node.AwaitOpt);
             }
 
-            if (node.ExpressionOpt != null)
+            if (node.ExpressionOpt is not null)
             {
                 var expression = Visit(node.ExpressionOpt);
                 var body = Visit(node.Body);
 
-                return CSharpStmtFactory("Using", expression, body);
+                if (awaitInfo is not null)
+                {
+                    return CSharpStmtFactory("AwaitUsing", expression, body, awaitInfo);
+                }
+                else
+                {
+                    return CSharpStmtFactory("Using", expression, body);
+                }
             }
             else
             {
@@ -949,7 +958,15 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                     // NB: We just nest Using blocks but we could improve the node in the runtime library
                     //     to capture multiple declarations, a la For.
-                    res = CSharpStmtFactory("Using", local, initializer, res);
+
+                    if (awaitInfo is not null)
+                    {
+                        res = CSharpStmtFactory("AwaitUsing", local, initializer, res, awaitInfo);
+                    }
+                    else
+                    {
+                        res = CSharpStmtFactory("Using", local, initializer, res);
+                    }
                 }
 
                 PopLocals(locals);
