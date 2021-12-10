@@ -422,8 +422,6 @@ namespace Microsoft.CodeAnalysis.CSharp
                 lastStmt = stmt;
             }
 
-            PopLocals(node.Locals);
-
             BoundLocal? returnLabel = null;
 
             if (isTopLevel)
@@ -445,6 +443,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 returnLabel = CurrentLambdaInfo.ReturnLabel;
             }
+
+            PopLocals(node.Locals);
 
             var variables = locals.Count > 0 ? _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree()) : null;
 
