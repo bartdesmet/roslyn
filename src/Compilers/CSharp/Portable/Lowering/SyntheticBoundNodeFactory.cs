@@ -1188,6 +1188,16 @@ namespace Microsoft.CodeAnalysis.CSharp
             { WasCompilerGenerated = true };
         }
 
+        public BoundExpression TypeofOrNull(TypeSymbol? type)
+        {
+            if (type is not null)
+            {
+                return Typeof(type);
+            }
+
+            return Null(WellKnownType(CodeAnalysis.WellKnownType.System_Type));
+        }
+
         public BoundExpression Typeof(TypeWithAnnotations type)
         {
             return Typeof(type.Type);
@@ -1286,6 +1296,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                     WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodBase) :
                     WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodInfo))
             { WasCompilerGenerated = true };
+        }
+
+        public BoundExpression MethodInfoOrNull(MethodSymbol? method)
+        {
+            if (method is not null)
+            {
+                return MethodInfo(method);
+            }
+
+            return Null(WellKnownType(Microsoft.CodeAnalysis.WellKnownType.System_Reflection_MethodInfo));
         }
 
         public BoundExpression FieldInfo(FieldSymbol field)

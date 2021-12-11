@@ -14,7 +14,13 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitIsPatternExpression(BoundIsPatternExpression node)
         {
+            if (_inExpressionLambda)
+            {
+                return node.Update(VisitExpression(node.Expression), node.Pattern, node.IsNegated, node.DecisionDag, node.WhenTrueLabel, node.WhenFalseLabel, node.Type);
+            }
+
             BoundDecisionDag decisionDag = node.GetDecisionDagForLowering(_factory.Compilation);
+
             bool negated = node.IsNegated;
             BoundExpression result;
             if (canProduceLinearSequence(decisionDag.RootNode, whenTrueLabel: node.WhenTrueLabel, whenFalseLabel: node.WhenFalseLabel))

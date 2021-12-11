@@ -343,6 +343,9 @@ namespace Microsoft.CodeAnalysis
         Microsoft_CSharp_Expressions_Interpolation,
         Microsoft_CSharp_Expressions_Conversion,
         Microsoft_CSharp_Expressions_MemberInitializer,
+        Microsoft_CSharp_Expressions_CSharpPattern,
+        Microsoft_CSharp_Expressions_PositionalCSharpSubpattern,
+        Microsoft_CSharp_Expressions_PropertyCSharpSubpattern,
 
         NextAvailable,
         // Remember to update the AllWellKnownTypes tests when making changes here
@@ -683,6 +686,10 @@ namespace Microsoft.CodeAnalysis
             "Microsoft.CSharp.Expressions.Conversion",
 
             "Microsoft.CSharp.Expressions.MemberInitializer",
+
+            "Microsoft.CSharp.Expressions.CSharpPattern",
+            "Microsoft.CSharp.Expressions.PositionalCSharpSubpattern",
+            "Microsoft.CSharp.Expressions.PropertyCSharpSubpattern",
         };
 
         private static readonly Dictionary<string, WellKnownType> s_nameToTypeIdMap = new Dictionary<string, WellKnownType>((int)Count);

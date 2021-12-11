@@ -460,6 +460,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.WithExpression:
                     return VisitWithExpression((BoundWithExpression)node);
 
+                case BoundKind.IsPatternExpression:
+                    return VisitIsPatternExpression((BoundIsPatternExpression)node);
+
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -2033,6 +2036,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                 _bound.Typeof(node.Type));
         }
 
+        private BoundExpression ConstantNull(TypeSymbol type)
+        {
+            return ExprFactory(
+                "Constant",
+                _bound.Null(_objectType),
+                _bound.Typeof(type));
+        }
+
         private BoundExpression VisitLocal(BoundLocal node)
         {
             if (node.ConstantValueOpt != null)
@@ -2533,6 +2544,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 return _replacements[node];
             }
+        }
+
+        private BoundExpression VisitIsPatternExpression(BoundIsPatternExpression node)
+        {
+            var expr = Visit(node.Expression);
+            var pattern = Visit(node.Pattern);
+            return CSharpExprFactory("IsPattern", expr, pattern);
         }
     }
 }

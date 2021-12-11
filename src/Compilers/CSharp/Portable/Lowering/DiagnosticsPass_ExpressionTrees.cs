@@ -74,10 +74,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private bool? _hasCSharpExpression, _hasCSharpStatement, _hasCSharpDynamic;
+        private bool? _hasCSharpExpression, _hasCSharpStatement, _hasCSharpDynamic, _hasCSharpPattern;
         private bool HasCSharpExpression => IsDefined(ref _hasCSharpExpression, WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
         private bool HasCSharpStatement => IsDefined(ref _hasCSharpStatement, WellKnownType.Microsoft_CSharp_Expressions_CSharpStatement);
         private bool HasCSharpDynamic => IsDefined(ref _hasCSharpDynamic, WellKnownType.Microsoft_CSharp_Expressions_DynamicCSharpExpression);
+        private bool HasCSharpPattern => IsDefined(ref _hasCSharpPattern, WellKnownType.Microsoft_CSharp_Expressions_CSharpPattern);
 
         private bool IsDefined(ref bool? field, WellKnownType type)
         {
@@ -959,12 +960,36 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitIsPatternExpression(BoundIsPatternExpression node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpPattern)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsIsMatch, node);
             }
 
             return base.VisitIsPatternExpression(node);
+        }
+
+        public override BoundNode VisitListPattern(BoundListPattern node)
+        {
+            // NB: List and slice patterns are vNext; ignore for now.
+            CheckPatternInExpressionTree(node);
+
+            return base.VisitListPattern(node);
+        }
+
+        public override BoundNode VisitSlicePattern(BoundSlicePattern node)
+        {
+            // NB: List and slice patterns are vNext; ignore for now.
+            CheckPatternInExpressionTree(node);
+
+            return base.VisitSlicePattern(node);
+        }
+
+        private void CheckPatternInExpressionTree(BoundNode node)
+        {
+            if (_inExpressionLambda)
+            {
+                Error(ErrorCode.ERR_ExpressionTreeContainsIsMatch, node);
+            }   
         }
 
         public override BoundNode VisitConvertedTupleLiteral(BoundConvertedTupleLiteral node)
