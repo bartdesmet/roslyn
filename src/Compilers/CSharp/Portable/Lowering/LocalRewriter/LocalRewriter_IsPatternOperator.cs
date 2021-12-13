@@ -16,7 +16,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
-                return node.Update(VisitExpression(node.Expression), node.Pattern, node.IsNegated, node.DecisionDag, node.WhenTrueLabel, node.WhenFalseLabel, node.Type);
+                return node.Update(VisitExpression(node.Expression), (BoundPattern)Visit(node.Pattern)!, node.IsNegated, node.DecisionDag, node.WhenTrueLabel, node.WhenFalseLabel, node.Type);
             }
 
             BoundDecisionDag decisionDag = node.GetDecisionDagForLowering(_factory.Compilation);
