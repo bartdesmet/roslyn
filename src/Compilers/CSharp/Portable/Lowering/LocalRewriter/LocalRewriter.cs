@@ -409,6 +409,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitDeconstructValuePlaceholder(BoundDeconstructValuePlaceholder node)
         {
+            if (_inExpressionLambda)
+            {
+                // This can occur during the local rewrite of 'foreach' statements that have a deconstruction.
+                return node;
+            }
+
             return PlaceholderReplacement(node);
         }
 

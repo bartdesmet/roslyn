@@ -755,41 +755,91 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitForEach(BoundForEachStatement node)
         {
-            if (node.IterationVariables.Length > 1 || node.AwaitOpt != null || node.DeconstructionOpt != null)
-            {
-                throw new NotImplementedException("TODO");
-            }
-
             var expression = Visit(node.Expression);
 
             var locals = PushLocals(node.IterationVariables);
 
             CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
 
+            var awaitInfo = getAwaitInfo();
+            var conversion = getConversionLambda();
+            var deconstruction = getDeconstructionLambda();
             var body = Visit(node.Body);
 
             var loopInfo = CurrentLambdaInfo.PopLoop();
 
-            var variables = locals.ToImmutableAndFree();
+            var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
             PopLocals(node.IterationVariables);
 
-            // TODO
-            // node.AwaitOpt
-            // node.DeconstructionOpt
-            // node.EnumeratorInfoOpt
-            // node.IterationErrorExpressionOpt
+            // TODO: node.EnumeratorInfoOpt - add overloads that take in MethodInfo for GetEnumerator etc?
 
-            var elementConversion = BoundNode.GetConversion(node.ElementConversion, node.ElementPlaceholder);
-
-            if (node.EnumeratorInfoOpt != null && elementConversion.IsUserDefined)
+            if (awaitInfo is not null)
             {
-                TypeSymbol lambdaParamType = node.EnumeratorInfoOpt.ElementType;
-                var conversion = MakeConversionLambda(elementConversion, lambdaParamType, node.IterationVariableType.Type);
-                return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion);
+                return CSharpStmtFactory("AwaitForEach", variables, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion, deconstruction, awaitInfo);
+            }
+            else
+            {
+                return CSharpStmtFactory("ForEach", variables, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion, deconstruction);
             }
 
-            // TODO: add overloads that take in MethodInfo for GetEnumerator etc?
-            return CSharpStmtFactory("ForEach", variables[0], expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel);
+            BoundExpression getConversionLambda()
+            {
+                var elementConversion = BoundNode.GetConversion(node.ElementConversion, node.ElementPlaceholder);
+
+                if (node.EnumeratorInfoOpt != null && elementConversion.IsUserDefined)
+                {
+                    TypeSymbol lambdaParamType = node.EnumeratorInfoOpt.ElementType;
+                    return MakeConversionLambda(elementConversion, lambdaParamType, node.IterationVariableType.Type);
+                }
+
+                return _bound.Null(LambdaExpressionType);
+            }
+
+            BoundExpression getDeconstructionLambda()
+            {
+                if (node.DeconstructionOpt is { DeconstructionAssignment: var assignment, TargetPlaceholder: var placeholder })
+                {
+                    var inputParameterSymbol = _bound.SynthesizedParameter(placeholder.Type, "t");
+                    var inputParameter = _bound.Parameter(inputParameterSymbol);
+                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
+                    var inputParam = ExprFactory("Parameter", _bound.Typeof(placeholder.Type), _bound.Literal("t"));
+
+                    var replacements = new Dictionary<BoundDeconstructValuePlaceholder, BoundExpression>
+                    {
+                        { placeholder, inputParameter }
+                    };
+
+                    _parameterMap.Add(inputParameterSymbol, inputParamExpr);
+
+                    var rewrittenAssignment = (BoundExpression)new DeconstructValuePlaceholderSubstitutor(replacements).Visit(assignment);
+                    var rewrittenAssignmentExpr = Visit(rewrittenAssignment);
+
+                    _parameterMap.Remove(inputParameterSymbol);
+
+                    return _bound.Sequence(
+                        ImmutableArray.Create(inputParamExprSymbol),
+                        ImmutableArray.Create<BoundExpression>(
+                            _bound.AssignmentExpression(inputParamExpr, inputParam)
+                        ),
+                        ExprFactory(
+                            "Lambda",
+                            rewrittenAssignmentExpr,
+                            _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
+                }
+
+                return _bound.Null(LambdaExpressionType);
+            }
+
+            BoundExpression? getAwaitInfo()
+            {
+                if (node.AwaitOpt is not null)
+                {
+                    return VisitAwaitInfo(node.AwaitOpt);
+                }
+
+                return null;
+            }
         }
 
         private IEnumerable<BoundExpression> VisitStatements(BoundStatement? node)

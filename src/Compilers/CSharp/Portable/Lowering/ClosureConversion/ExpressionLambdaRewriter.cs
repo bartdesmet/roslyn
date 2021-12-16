@@ -43,7 +43,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol ExpressionTypeType => _ExpressionTypeType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ExpressionType);
 
         private NamedTypeSymbol _LambdaExpressionType;
-        private NamedTypeSymbol LambdaExpressionTypeType => _LambdaExpressionType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression);
+        private NamedTypeSymbol LambdaExpressionType => _LambdaExpressionType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_LambdaExpression);
 
         private NamedTypeSymbol _CSharpExpressionType;
         private NamedTypeSymbol CSharpExpressionType => _CSharpExpressionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpExpression);
@@ -1262,7 +1262,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     builder.Add(MakeConversionLambda(elementConversions[i], sourceTypes[i].Type, destTypes[i].Type));
                 }
 
-                return _bound.Array(LambdaExpressionTypeType, builder.ToImmutableAndFree());
+                return _bound.Array(LambdaExpressionType, builder.ToImmutableAndFree());
             }
 
             var conversions = getElementConversions();
@@ -2272,7 +2272,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     builder.Add(result);
                 }
 
-                return _bound.Array(LambdaExpressionTypeType, builder.ToImmutableAndFree());
+                return _bound.Array(LambdaExpressionType, builder.ToImmutableAndFree());
 
                 (ParameterSymbol parameterSymbol, BoundParameter parameter, LocalSymbol parameterExpressionLocalSymbol, BoundLocal parameterExpressionLocal, BoundAssignmentOperator assignParameterExpression) pushParameter(TypeSymbol type, string name)
                 {
