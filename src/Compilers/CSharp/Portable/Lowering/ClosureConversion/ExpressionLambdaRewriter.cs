@@ -144,6 +144,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public NamedTypeSymbol MemberInitializerType => _MemberInitializerType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_MemberInitializer);
 
+        private NamedTypeSymbol _SwitchExpressionArmType;
+
+        public NamedTypeSymbol SwitchExpressionArmType => _SwitchExpressionArmType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_SwitchExpressionArm);
 
         private readonly NamedTypeSymbol _IEnumerableType;
 
@@ -462,6 +465,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.IsPatternExpression:
                     return VisitIsPatternExpression((BoundIsPatternExpression)node);
+
+                case BoundKind.ConvertedSwitchExpression:
+                    return VisitConvertedSwitchExpression((BoundConvertedSwitchExpression)node);
 
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
@@ -2551,6 +2557,38 @@ namespace Microsoft.CodeAnalysis.CSharp
             var expr = Visit(node.Expression);
             var pattern = Visit(node.Pattern);
             return CSharpExprFactory("IsPattern", expr, pattern);
+        }
+
+        private BoundExpression VisitConvertedSwitchExpression(BoundConvertedSwitchExpression node)
+        {
+            var type = _bound.Typeof(node.Type);
+            var expr = Visit(node.Expression);
+
+            var switchArmList = ArrayBuilder<BoundExpression>.GetInstance();
+
+            foreach (var arm in node.SwitchArms)
+            {
+                switchArmList.Add(VisitSwitchExpressionArm(arm));
+            }
+
+            var switchArms = _bound.Array(SwitchExpressionArmType, switchArmList.ToImmutableAndFree());
+
+            return CSharpExprFactory("SwitchExpression", type, expr, switchArms);
+        }
+
+        private BoundExpression VisitSwitchExpressionArm(BoundSwitchExpressionArm node)
+        {
+            var locals = PushLocals(node.Locals);
+
+            var pattern = Visit(node.Pattern);
+            var whenClause = Visit(node.WhenClause) ?? _bound.Null(ExpressionType);
+            var value = Visit(node.Value);
+
+            PopLocals(node.Locals);
+
+            var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
+
+            return CSharpExprFactory("SwitchExpressionArm", variables, pattern, whenClause, value);
         }
     }
 }

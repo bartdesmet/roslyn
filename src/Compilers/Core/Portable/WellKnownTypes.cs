@@ -346,6 +346,7 @@ namespace Microsoft.CodeAnalysis
         Microsoft_CSharp_Expressions_CSharpPattern,
         Microsoft_CSharp_Expressions_PositionalCSharpSubpattern,
         Microsoft_CSharp_Expressions_PropertyCSharpSubpattern,
+        Microsoft_CSharp_Expressions_SwitchExpressionArm,
 
         NextAvailable,
         // Remember to update the AllWellKnownTypes tests when making changes here
@@ -690,6 +691,8 @@ namespace Microsoft.CodeAnalysis
             "Microsoft.CSharp.Expressions.CSharpPattern",
             "Microsoft.CSharp.Expressions.PositionalCSharpSubpattern",
             "Microsoft.CSharp.Expressions.PropertyCSharpSubpattern",
+
+            "Microsoft.CSharp.Expressions.SwitchExpressionArm",
         };
 
         private static readonly Dictionary<string, WellKnownType> s_nameToTypeIdMap = new Dictionary<string, WellKnownType>((int)Count);

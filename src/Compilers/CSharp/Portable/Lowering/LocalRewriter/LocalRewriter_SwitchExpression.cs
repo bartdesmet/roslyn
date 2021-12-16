@@ -16,12 +16,32 @@ namespace Microsoft.CodeAnalysis.CSharp
     {
         public override BoundNode VisitConvertedSwitchExpression(BoundConvertedSwitchExpression node)
         {
+            if (_inExpressionLambda && HasCSharpExpression)
+            {
+                var expression = VisitExpression(node.Expression);
+                var switchArms = VisitList(node.SwitchArms);
+                return node.Update(node.NaturalTypeOpt, node.WasTargetTyped, expression, switchArms, node.DecisionDag, node.DefaultLabel, node.ReportedNotExhaustive, node.Type);
+            }
+
             // The switch expression is lowered to an expression that involves the use of side-effects
             // such as jumps and labels, therefore it is represented by a BoundSpillSequence and
             // the resulting nodes will need to be "spilled" to move such statements to the top
             // level (i.e. into the enclosing statement list).
             this._needsSpilling = true;
             return SwitchExpressionLocalRewriter.Rewrite(this, node);
+        }
+
+        public override BoundNode? VisitSwitchExpressionArm(BoundSwitchExpressionArm node)
+        {
+            if (_inExpressionLambda && HasCSharpExpression)
+            {
+                var pattern = (BoundPattern)Visit(node.Pattern)!;
+                var whenClause = VisitExpression(node.WhenClause);
+                var value = VisitExpression(node.Value);
+                return node.Update(node.Locals, pattern, whenClause, value, node.Label);
+            }
+
+            return base.VisitSwitchExpressionArm(node);
         }
 
         private sealed class SwitchExpressionLocalRewriter : BaseSwitchLocalRewriter

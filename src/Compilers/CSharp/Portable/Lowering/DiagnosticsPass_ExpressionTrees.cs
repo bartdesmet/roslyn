@@ -237,7 +237,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitConvertedSwitchExpression(BoundConvertedSwitchExpression node)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpExpression)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsSwitchExpression, node);
             }
