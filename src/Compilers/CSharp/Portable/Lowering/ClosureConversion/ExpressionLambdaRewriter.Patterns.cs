@@ -190,8 +190,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     CSharpPatternFactory(
                         "PositionalSubpattern",
                         Visit(node.Pattern),
-                        _bound.Literal(f.Name),
-                        _bound.Literal(f.TupleElementIndex)
+                        TupleFieldInfo(f)
                     ),
                 ParameterSymbol p =>
                     CSharpPatternFactory(
@@ -206,6 +205,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                         Visit(node.Pattern)
                     )
             };
+
+        private BoundExpression TupleFieldInfo(FieldSymbol f) =>
+            CSharpExprFactory(
+                "TupleFieldInfo",
+                _bound.Literal(f.Name),
+                _bound.Literal(f.TupleElementIndex),
+                _bound.Typeof(f.Type)
+            );
 
         private BoundExpression VisitSubpatterns<T>(ImmutableArray<T> nodes, Func<T, BoundExpression> visit, TypeSymbol type)
             where T : BoundSubpattern
@@ -250,6 +257,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression FieldOrPropertyMemberInfo(Symbol? symbol) =>
             symbol switch
             {
+                FieldSymbol f when f.IsVirtualTupleField => TupleFieldInfo(f),
                 FieldSymbol f => _bound.FieldInfo(f),
                 PropertySymbol p => _bound.MethodInfo(p.GetOwnOrInheritedGetMethod()!), // REVIEW: Always has an accessible getter?
                 _ => _bound.Null(MemberInfoType)
