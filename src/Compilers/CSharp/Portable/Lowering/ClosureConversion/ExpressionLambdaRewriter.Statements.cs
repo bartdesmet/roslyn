@@ -30,6 +30,9 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _CSharpConditionalReceiverType;
         private NamedTypeSymbol ConditionalReceiverType => _CSharpConditionalReceiverType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ConditionalReceiver);
 
+        private NamedTypeSymbol _CSharpLocalDeclarationType;
+        private NamedTypeSymbol CSharpLocalDeclarationType => _CSharpLocalDeclarationType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_LocalDeclaration);
+
         [return: NotNullIfNotNull("node")]
         private BoundExpression? Visit(BoundStatement? node)
         {
@@ -67,11 +70,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.ExpressionStatement:
                     return VisitExpressionStatement((BoundExpressionStatement)node);
-
-                case BoundKind.LocalDeclaration:
-                    return VisitLocalDeclaration((BoundLocalDeclaration)node);
-                case BoundKind.MultipleLocalDeclarations:
-                    return VisitMultipleLocalDeclarations((BoundMultipleLocalDeclarations)node);
 
                 case BoundKind.IfStatement:
                     return VisitIf((BoundIfStatement)node);
@@ -149,40 +147,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression Statements(ImmutableArray<BoundStatement> statements, out int count)
-        {
-            var builder = ArrayBuilder<BoundExpression>.GetInstance();
-            foreach (var arg in statements)
-            {
-                var stmt = Visit(arg);
-                if (stmt != null)
-                {
-                    builder.Add(stmt);
-                }
-            }
-
-            count = builder.Count;
-
-            return _bound.Array(ExpressionType, builder.ToImmutableAndFree());
-        }
-
         private BoundExpression CSharpStmtFactory(string name, params BoundExpression[] arguments)
         {
             return _bound.StaticCall(CSharpStatementType, name, arguments);
-        }
-
-        private BoundExpression CSharpStmtFactory(string name, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
-        {
-            return _bound.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, CSharpStatementType, name, typeArgs, arguments);
-        }
-
-        private BoundExpression CSharpStmtFactory(WellKnownMember method, ImmutableArray<TypeSymbol> typeArgs, params BoundExpression[] arguments)
-        {
-            var m0 = _bound.WellKnownMethod(method);
-            Debug.Assert((object)m0 != null);
-            Debug.Assert(m0.ParameterCount == arguments.Length);
-            var m1 = m0.Construct(typeArgs);
-            return _bound.Call(null, m1, arguments);
         }
 
         private BoundExpression VisitAssignmentOperator(BoundAssignmentOperator node)
@@ -632,12 +599,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitLocalDeclaration(BoundLocalDeclaration node)
         {
-            throw new NotImplementedException();
+            var local = _localMap[node.LocalSymbol];
+            var initializer = Visit(node.InitializerOpt);
+
+            return CSharpStmtFactory("LocalDeclaration", local, initializer);
         }
 
         private BoundExpression VisitMultipleLocalDeclarations(BoundMultipleLocalDeclarations node)
         {
-            throw new NotImplementedException();
+            var declarations = node.LocalDeclarations.SelectAsArray(decl => VisitLocalDeclaration(decl));
+
+            return _bound.Array(CSharpLocalDeclarationType, declarations);
         }
 
         private BoundExpression VisitIf(BoundIfStatement node)
@@ -896,82 +868,41 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitUsing(BoundUsingStatement node)
         {
-            // REVIEW: Locals
-
             if (node.PatternDisposeInfoOpt is not null)
             {
                 throw new NotImplementedException("TODO");
             }
 
-            BoundExpression? awaitInfo = null;
+            var locals = PushLocals(node.Locals);
 
-            if (node.AwaitOpt is not null)
-            {
-                awaitInfo = VisitAwaitInfo(node.AwaitOpt);
-            }
+            BoundExpression resource;
 
             if (node.ExpressionOpt is not null)
             {
-                var expression = Visit(node.ExpressionOpt);
-                var body = Visit(node.Body);
-
-                if (awaitInfo is not null)
-                {
-                    return CSharpStmtFactory("AwaitUsing", expression, body, awaitInfo);
-                }
-                else
-                {
-                    return CSharpStmtFactory("Using", expression, body);
-                }
+                resource = Visit(node.ExpressionOpt);
             }
             else
             {
                 Debug.Assert(node.DeclarationsOpt != null); // REVIEW
 
-                var decls = node.DeclarationsOpt.LocalDeclarations;
-                var n = decls.Length;
+                resource = VisitMultipleLocalDeclarations(node.DeclarationsOpt);
+            }
 
-                var localsBuilder = ArrayBuilder<LocalSymbol>.GetInstance(n);
+            var body = Visit(node.Body);
 
-                // NB: We're just flattening all locals into a single list; no need to narrow down the
-                //     scopes here; all locals should be unique and will be mapped onto unique expressions.
-                //     Also, for expression trees, all ParameterExpression creations precede the creation
-                //     of the tree using factories, so there's no way to narrow down scopes.
+            PopLocals(node.Locals);
 
-                for (var i = 0; i < n; i++)
-                {
-                    localsBuilder.Add(decls[i].LocalSymbol);
-                }
+            var variables =_bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
 
-                var locals = localsBuilder.ToImmutableAndFree();
+            if (node.AwaitOpt is not null)
+            {
+                var awaitInfo = VisitAwaitInfo(node.AwaitOpt);
 
-                PushLocals(locals);
-
-                var res = Visit(node.Body);
-
-                for (var i = n - 1; i >= 0; i--)
-                {
-                    var decl = decls[i];
-
-                    var local = _localMap[decl.LocalSymbol];
-                    var initializer = Visit(decl.InitializerOpt);
-
-                    // NB: We just nest Using blocks but we could improve the node in the runtime library
-                    //     to capture multiple declarations, a la For.
-
-                    if (awaitInfo is not null)
-                    {
-                        res = CSharpStmtFactory("AwaitUsing", local, initializer, res, awaitInfo);
-                    }
-                    else
-                    {
-                        res = CSharpStmtFactory("Using", local, initializer, res);
-                    }
-                }
-
-                PopLocals(locals);
-
-                return res;
+                return CSharpStmtFactory("AwaitUsing", variables, resource, body, awaitInfo);
+            }
+            else
+            {
+                return CSharpStmtFactory("Using", variables, resource, body);
             }
         }
 
