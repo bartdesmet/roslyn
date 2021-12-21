@@ -12,7 +12,7 @@ namespace Microsoft.CodeAnalysis.CSharp
     /// Information about the arguments of a call that can turned into a BoundCall later without recalculating
     /// default arguments.
     /// </summary>
-    internal sealed record MethodArgumentInfo(
+    internal record MethodArgumentInfo(
         MethodSymbol Method,
         ImmutableArray<BoundExpression> Arguments,
         ImmutableArray<int> ArgsToParamsOpt,
@@ -24,5 +24,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert(method.ParameterCount == 0);
             return new MethodArgumentInfo(method, Arguments: ImmutableArray<BoundExpression>.Empty, ArgsToParamsOpt: default, DefaultArguments: default, Expanded: false);
         }
+    }
+
+    internal record QuotedMethodArgumentInfo(MethodArgumentInfo info, BoundParameter Receiver, BoundExpression Call) : MethodArgumentInfo(info)
+    {
     }
 }

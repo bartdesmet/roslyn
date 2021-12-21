@@ -546,26 +546,36 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             foreach (var local in locals)
             {
-                var variable = _bound.SynthesizedLocal(ParameterExpressionType);
-                CurrentLambdaInfo.AddLocal(variable);
-                var localReference = _bound.Local(variable);
-                res.Add(localReference);
-                var parameter = CSharpStmtFactory(
-                    "Variable",
-                    _bound.Typeof(_typeMap.SubstituteType(local.Type).Type), _bound.Literal(local.Name));
-                CurrentLambdaInfo.AddLocalInitializer(_bound.AssignmentExpression(localReference, parameter));
-                _localMap[local] = localReference;
+                res.Add(PushLocal(local));
             }
 
             return res;
+        }
+
+        private BoundExpression PushLocal(LocalSymbol local)
+        {
+            var variable = _bound.SynthesizedLocal(ParameterExpressionType);
+            CurrentLambdaInfo.AddLocal(variable);
+            var localReference = _bound.Local(variable);
+            var parameter = CSharpStmtFactory(
+                "Variable",
+                _bound.Typeof(_typeMap.SubstituteType(local.Type).Type), _bound.Literal(local.Name));
+            CurrentLambdaInfo.AddLocalInitializer(_bound.AssignmentExpression(localReference, parameter));
+            _localMap[local] = localReference;
+            return localReference;
         }
 
         private void PopLocals(ImmutableArray<LocalSymbol> locals)
         {
             foreach (var local in locals)
             {
-                _localMap.Remove(local);
+                PopLocal(local);
             }
+        }
+
+        private void PopLocal(LocalSymbol local)
+        {
+            _localMap.Remove(local);
         }
 
         private BoundExpression VisitReturn(BoundReturnStatement node)
@@ -868,9 +878,32 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitUsing(BoundUsingStatement node)
         {
-            if (node.PatternDisposeInfoOpt is not null)
+            BoundExpression createPatternDisposeLambda()
             {
-                throw new NotImplementedException("TODO");
+                if (node.PatternDisposeInfoOpt is QuotedMethodArgumentInfo { Receiver: var receiver, Call: var call })
+                {
+                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
+                    var inputParam = ExprFactory("Parameter", _bound.Typeof(receiver.Type), _bound.Literal(receiver.ParameterSymbol.Name));
+
+                    _parameterMap.Add(receiver.ParameterSymbol, inputParamExpr);
+
+                    var callExpr = Visit(call);
+
+                    _parameterMap.Remove(receiver.ParameterSymbol);
+
+                    return _bound.Sequence(
+                        ImmutableArray.Create(inputParamExprSymbol),
+                        ImmutableArray.Create<BoundExpression>(
+                            _bound.AssignmentExpression(inputParamExpr, inputParam)
+                        ),
+                        ExprFactory(
+                            "Lambda",
+                            callExpr,
+                            _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
+                }
+
+                return _bound.Null(LambdaExpressionType);
             }
 
             var locals = PushLocals(node.Locals);
@@ -894,15 +927,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var variables =_bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
 
+            var patternDispose = createPatternDisposeLambda();
+
             if (node.AwaitOpt is not null)
             {
                 var awaitInfo = VisitAwaitInfo(node.AwaitOpt);
 
-                return CSharpStmtFactory("AwaitUsing", variables, resource, body, awaitInfo);
+                return CSharpStmtFactory("AwaitUsing", variables, resource, body, awaitInfo, patternDispose);
             }
             else
             {
-                return CSharpStmtFactory("Using", variables, resource, body);
+                return CSharpStmtFactory("Using", variables, resource, body, patternDispose);
             }
         }
 

@@ -52,7 +52,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 if (_inExpressionLambda)
                 {
                     var rewrittenDeclarations = VisitUsingDeclarations(node.DeclarationsOpt);
-                    return node.Update(node.Locals, rewrittenDeclarations, null, rewrittenBody, node.AwaitOpt, node.PatternDisposeInfoOpt);
+                    var patternDisposeInfo = QuotePatternDispose(node);
+                    return node.Update(node.Locals, rewrittenDeclarations, null, rewrittenBody, node.AwaitOpt, patternDisposeInfo);
                 }
 
                 SyntaxToken awaitKeyword = node.Syntax.Kind() == SyntaxKind.UsingStatement ? ((UsingStatementSyntax)node.Syntax).AwaitKeyword : default;
@@ -189,7 +190,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 if (_inExpressionLambda)
                 {
-                    return node.Update(node.Locals, null, tempInit, tryBlock, node.AwaitOpt, node.PatternDisposeInfoOpt);
+                    var patternDisposeInfo = QuotePatternDispose(node);
+                    return node.Update(node.Locals, null, tempInit, tryBlock, node.AwaitOpt, patternDisposeInfo);
                 }
 
                 boundTemp = _factory.StoreToTemp(tempInit, out tempAssignment, kind: SynthesizedLocalKind.Using);
@@ -198,7 +200,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 if (_inExpressionLambda)
                 {
-                    return node.Update(node.Locals, null, rewrittenExpression, tryBlock, node.AwaitOpt, node.PatternDisposeInfoOpt);
+                    var patternDisposeInfo = QuotePatternDispose(node);
+                    return node.Update(node.Locals, null, rewrittenExpression, tryBlock, node.AwaitOpt, patternDisposeInfo);
                 }
 
                 // ResourceType temp = expr;
@@ -548,6 +551,36 @@ namespace Microsoft.CodeAnalysis.CSharp
                 temps: null);
         }
 
+        private MethodArgumentInfo? QuotePatternDispose(BoundUsingStatement node)
+        {
+            if (node.PatternDisposeInfoOpt is { } patternDispose)
+            {
+                TypeSymbol type;
+
+                if (node.ExpressionOpt is { } expr)
+                {
+                    type = expr.Type!;
+                }
+                else
+                {
+                    Debug.Assert(node.DeclarationsOpt is not null);
+                    type = node.DeclarationsOpt.LocalDeclarations[0].LocalSymbol.Type;
+                }
+
+                if (type.IsNullableType())
+                {
+                    type = type.StrippedType();
+                }
+
+                var localSymbol = _factory.SynthesizedParameter(type, "d");
+                var receiver = new BoundParameter(node.Syntax, localSymbol, type);
+                var call = MakeCallWithNoExplicitArgument(patternDispose, node.Syntax, receiver);
+                return new QuotedMethodArgumentInfo(patternDispose, receiver, call);
+            }
+
+            return null;
+        }
+
         public BoundMultipleLocalDeclarations VisitUsingDeclarations(BoundMultipleLocalDeclarations node)
         {
             var decls = ArrayBuilder<BoundLocalDeclaration>.GetInstance(node.LocalDeclarations.Length);
@@ -555,23 +588,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             foreach (var decl in node.LocalDeclarations)
             {
                 var rewrittenInitializer = VisitExpression(decl.InitializerOpt);
-
-                //
-                // REVIEW: This got removed after the IDispoableConversion was dropped. Review if any logic is missing.
-                //
-                //if (rewrittenInitializer != null && decl.LocalSymbol.Type.IsDynamic())
-                //{
-                //    rewrittenInitializer = MakeConversionNode(
-                //        decl.Syntax,
-                //        rewrittenInitializer,
-                //        idisposableConversion,
-                //        _compilation.GetSpecialType(SpecialType.System_IDisposable),
-                //        @checked: false);
-                //}
-
-                // TODO: Check what the ArgumentsOpt are for.
                 var declRewritten = decl.Update(decl.LocalSymbol, decl.DeclaredTypeOpt, rewrittenInitializer, VisitList(decl.ArgumentsOpt), decl.InferredType);
-
                 decls.Add(declRewritten);
             }
 
