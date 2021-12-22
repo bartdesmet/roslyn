@@ -474,7 +474,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// </summary>
         private void CheckOutDeclaration(BoundLocal local)
         {
-            if (_inExpressionLambda)
+            if (_inExpressionLambda && !HasCSharpExpression)
             {
                 Error(ErrorCode.ERR_ExpressionTreeContainsOutVariable, local);
             }
