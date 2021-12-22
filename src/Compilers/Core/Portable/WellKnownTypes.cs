@@ -331,7 +331,6 @@ namespace Microsoft.CodeAnalysis
 
         System_Linq_Expressions_LambdaExpression,
         System_Linq_Expressions_LabelTarget,
-        System_Linq_Expressions_CatchBlock,
 
         Microsoft_CSharp_Expressions_CSharpExpression,
         Microsoft_CSharp_Expressions_ParameterAssignment,
@@ -348,6 +347,7 @@ namespace Microsoft.CodeAnalysis
         Microsoft_CSharp_Expressions_PropertyCSharpSubpattern,
         Microsoft_CSharp_Expressions_SwitchExpressionArm,
         Microsoft_CSharp_Expressions_LocalDeclaration,
+        Microsoft_CSharp_Expressions_CSharpCatchBlock,
 
         NextAvailable,
         // Remember to update the AllWellKnownTypes tests when making changes here
@@ -670,7 +670,6 @@ namespace Microsoft.CodeAnalysis
 
             "System.Linq.Expressions.LambdaExpression",
             "System.Linq.Expressions.LabelTarget",
-            "System.Linq.Expressions.CatchBlock",
 
             "Microsoft.CSharp.Expressions.CSharpExpression",
             "Microsoft.CSharp.Expressions.ParameterAssignment",
@@ -696,6 +695,8 @@ namespace Microsoft.CodeAnalysis
             "Microsoft.CSharp.Expressions.SwitchExpressionArm",
 
             "Microsoft.CSharp.Expressions.LocalDeclaration",
+
+            "Microsoft.CSharp.Expressions.CSharpCatchBlock",
         };
 
         private static readonly Dictionary<string, WellKnownType> s_nameToTypeIdMap = new Dictionary<string, WellKnownType>((int)Count);

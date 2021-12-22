@@ -21,8 +21,8 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _LabelTargetType;
         private NamedTypeSymbol LabelTargetType => _LabelTargetType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_LabelTarget);
 
-        private NamedTypeSymbol _CatchBlockType;
-        private NamedTypeSymbol CatchBlockType => _CatchBlockType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_CatchBlock);
+        private NamedTypeSymbol _CSharpCatchBlockType;
+        private NamedTypeSymbol CSharpCatchBlockType => _CSharpCatchBlockType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpCatchBlock);
 
         private NamedTypeSymbol _CSharpSwitchCaseType;
         private NamedTypeSymbol CSharpSwitchCaseType => _CSharpSwitchCaseType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
@@ -943,98 +943,72 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitTry(BoundTryStatement node)
         {
-            var body = Visit(node.TryBlock);
+            var tryBlock = Visit(node.TryBlock);
 
-            var @catch = node.CatchBlocks;
-            if (@catch.Length > 0)
+            var catchBlockExprs = ArrayBuilder<BoundExpression>.GetInstance();
+
+            foreach (var catchBlock in node.CatchBlocks)
             {
-                var catchBlocks = ArrayBuilder<BoundExpression>.GetInstance();
-
-                foreach (var catchBlock in node.CatchBlocks)
-                {
-                    catchBlocks.Add(VisitCatchBlock(catchBlock));
-                }
-
-                var catches = _bound.Array(CatchBlockType, catchBlocks.ToImmutableAndFree());
-
-                if (node.FinallyBlockOpt != null)
-                {
-                    var @finally = Visit(node.FinallyBlockOpt);
-                    return CSharpStmtFactory("TryCatchFinally", body, @finally, catches);
-                }
-                else
-                {
-                    return CSharpStmtFactory("TryCatch", body, catches);
-                }
+                catchBlockExprs.Add(VisitCatchBlock(catchBlock));
             }
-            else
-            {
-                Debug.Assert(node.FinallyBlockOpt != null);
-                var @finally = Visit(node.FinallyBlockOpt);
-                return CSharpStmtFactory("TryFinally", body, @finally);
-            }
+
+            var catchBlocks = _bound.Array(CSharpCatchBlockType, catchBlockExprs.ToImmutableAndFree());
+
+            var finallyBlock = node.FinallyBlockOpt != null ? Visit(node.FinallyBlockOpt) :_bound.Null(ExpressionType);
+
+            return CSharpStmtFactory("Try", tryBlock, catchBlocks, finallyBlock);
         }
 
         private BoundExpression VisitCatchBlock(BoundCatchBlock node)
         {
-            // TODO: check use of ExceptionSourceOpt
+            var args = ArrayBuilder<BoundExpression>.GetInstance();
 
-            if (node.Locals.Length > 0)
+            var locals = PushLocals(node.Locals);
+
+            var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
+            args.Add(variables);
+
+            if (node.ExceptionSourceOpt is BoundExpression source)
             {
-                var locals = PushLocals(node.Locals);
+                // catch (T e)
 
-                var body = Visit(node.Body);
-                var filter = Visit(node.ExceptionFilterOpt);
+                Debug.Assert(source is BoundLocal);
 
-                if (node.ExceptionSourceOpt is not null)
-                {
-                    if (node.ExceptionSourceOpt is BoundLocal local)
-                    {
-                        if (local.LocalSymbol.DeclarationKind != LocalDeclarationKind.CatchVariable)
-                        {
-                            throw new NotImplementedException("TODO");
-                        }
-                    }
-                    else
-                    {
-                        throw new NotImplementedException("TODO");
-                    }
-                }
+                var local = (BoundLocal)source;
+                Debug.Assert(local.LocalSymbol.DeclarationKind == LocalDeclarationKind.CatchVariable);
 
-                var variable = locals.ToImmutableAndFree()[0]; // REVIEW
-
-                PopLocals(node.Locals);
-
-                // TODO: Add locals
-
-                if (filter != null)
-                {
-                    return CSharpStmtFactory("Catch", variable, body, filter);
-                }
-                else
-                {
-                    return CSharpStmtFactory("Catch", variable, body);
-                }
+                // NB: We want the local to come out as ParameterExpression to pick the right overload of Catch.
+                args.Add(Visit(local, convertToExpressionType: false));
             }
-            else
+            else if (node.ExceptionTypeOpt is TypeSymbol type)
             {
-                var type = node.ExceptionTypeOpt ?? _bound.WellKnownType(WellKnownType.System_Exception); // TODO: catch System.Object instead?
-                type = _typeMap.SubstituteType(type).Type;
+                // catch (T)
 
-                var body = Visit(node.Body);
-                var filter = Visit(node.ExceptionFilterOpt);
+                type = _typeMap.SubstituteType(type).Type;
 
                 var exceptionType = _bound.Typeof(type);
 
-                if (filter != null)
-                {
-                    return CSharpStmtFactory("Catch", exceptionType, body, filter);
-                }
-                else
-                {
-                    return CSharpStmtFactory("Catch", exceptionType, body);
-                }
+                args.Add(exceptionType);
             }
+            else
+            {
+                // catch
+            }
+
+            args.Add(Visit(node.Body));
+            
+            if (node.ExceptionFilterOpt is BoundExpression filter)
+            {
+                args.Add(Visit(filter));
+            }
+
+            PopLocals(node.Locals);
+
+            // Catch(IEnumerable<ParameterExpression> variables, ParameterExpression variable, Expression body[, Expression filter])
+            // Catch(IEnumerable<ParameterExpression> variables, Type type, Expression body[, Expression filter])
+            // Catch(IEnumerable<ParameterExpression> variables, Expression body[, Expression filter])
+            
+            return CSharpStmtFactory("Catch", args.ToArrayAndFree());
         }
 
         private BoundExpression VisitThrow(BoundThrowStatement node)
