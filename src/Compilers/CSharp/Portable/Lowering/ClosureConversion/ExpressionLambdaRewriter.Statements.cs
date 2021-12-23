@@ -24,8 +24,9 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _CSharpCatchBlockType;
         private NamedTypeSymbol CSharpCatchBlockType => _CSharpCatchBlockType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpCatchBlock);
 
-        private NamedTypeSymbol _CSharpSwitchCaseType;
-        private NamedTypeSymbol CSharpSwitchCaseType => _CSharpSwitchCaseType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_CSharpSwitchCase);
+        private NamedTypeSymbol _CSharpSwitchSectionType, _CSharpSwitchLabelType;
+        private NamedTypeSymbol CSharpSwitchSectionType => _CSharpSwitchSectionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_SwitchSection);
+        private NamedTypeSymbol CSharpSwitchLabelType => _CSharpSwitchLabelType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_SwitchLabel);
 
         private NamedTypeSymbol _CSharpConditionalReceiverType;
         private NamedTypeSymbol ConditionalReceiverType => _CSharpConditionalReceiverType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_ConditionalReceiver);
@@ -640,49 +641,53 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var locals = PushLocals(node.InnerLocals);
 
-            var caseList = ArrayBuilder<BoundExpression>.GetInstance();
+            var sections = node.SwitchSections.SelectAsArray(visitSwitchSection);
+            var sectionsExpr = _bound.Array(CSharpSwitchSectionType, sections);
 
-            foreach (var section in node.SwitchSections)
-            {
-                var switchLabels = section.SwitchLabels.SelectAsArray(l =>
-                {
-                    var label = CurrentLambdaInfo.GetOrAddLabel(l.Label); // REVIEW
-                    var labelExpr = CSharpStmtFactory("Label", label);
-
-                    switch (l.Pattern)
-                    {
-                        case BoundConstantPattern c:
-                            // TODO: c.ConvertedType
-                            return _bound.Convert(_objectType, c.Value);
-                        case BoundDiscardPattern _:
-                            // REVIEW: Takes the place of default for now; switch needs rework to support patterns
-                            return _bound.Property(WellKnownMember.Microsoft_CSharp_Expressions_CSharpExpression__SwitchCaseDefaultValue);
-                        default:
-                            // TODO: Other pattern types
-                            throw new NotImplementedException("TODO");
-                    }
-                });
-
-                // TODO: section.Locals
-
-                var testValues = _bound.Array(_objectType, switchLabels);
-
-                var body = VisitStatements(section.Statements);
-
-                var @case = CSharpStmtFactory("SwitchCase", testValues, body);
-                caseList.Add(@case);
-            }
-
-            var cases = _bound.Array(CSharpSwitchCaseType, caseList.ToImmutableAndFree());
+            PopLocals(node.InnerLocals);
 
             CurrentLambdaInfo.PopSwitchDefaultLabel();
             var breakInfo = CurrentLambdaInfo.PopBreak();
 
-            PopLocals(node.InnerLocals);
-
             var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
 
-            return CSharpStmtFactory("Switch", expression, breakInfo.BreakLabel, variables, cases);
+            return CSharpStmtFactory("Switch", expression, breakInfo.BreakLabel, variables, sectionsExpr);
+
+            BoundExpression visitSwitchSection(BoundSwitchSection section)
+            {
+                var locals = PushLocals(section.Locals);
+
+                var labels = section.SwitchLabels.SelectAsArray(visitSwitchLabel);
+                var statements = VisitStatements(section.Statements);
+
+                PopLocals(section.Locals);
+
+                var localsExpr = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
+                var labelsExpr = _bound.Array(CSharpSwitchLabelType, labels);
+
+                return CSharpStmtFactory("SwitchSection", localsExpr, labelsExpr, statements);
+
+                BoundExpression visitSwitchLabel(BoundSwitchLabel switchLabel)
+                {
+                    var args = ArrayBuilder<BoundExpression>.GetInstance();
+
+                    var label = CurrentLambdaInfo.GetOrAddLabel(switchLabel.Label);
+                    args.Add(label);
+
+                    var patternExpr = Visit(switchLabel.Pattern);
+                    args.Add(patternExpr);
+
+                    if (switchLabel.WhenClause is { } whenClause)
+                    {
+                        var whenExpr = Visit(whenClause);
+                        args.Add(whenExpr);
+                    }
+
+                    // CONSIDER: if (label.Syntax.Kind() != SyntaxKind.DefaultSwitchLabel)
+                    
+                    return CSharpStmtFactory("SwitchLabel", args.ToArrayAndFree());
+                }
+            }
         }
 
         private BoundExpression VisitStatements(ImmutableArray<BoundStatement> statements)
@@ -1046,18 +1051,19 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitGoto(BoundGotoStatement node)
         {
+            var label = CurrentLambdaInfo.GetOrAddLabel(node.Label);
+
             if (node.CaseExpressionOpt != null)
             {
                 var @case = _bound.Convert(_objectType, node.CaseExpressionOpt);
-                return CSharpStmtFactory("GotoCase", @case);
+                return CSharpStmtFactory("GotoCase", @case, label);
             }
             else if (node.Label == CurrentLambdaInfo.ClosestSwitchDefaultLabel)
             {
-                return CSharpStmtFactory("GotoDefault");
+                return CSharpStmtFactory("GotoDefault", label);
             }
             else
             {
-                var label = CurrentLambdaInfo.GetOrAddLabel(node.Label);
                 return CSharpStmtFactory("GotoLabel", label);
             }
         }
