@@ -651,7 +651,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
 
-            return CSharpStmtFactory("Switch", expression, breakInfo.BreakLabel, variables, sectionsExpr);
+            return CSharpStmtFactory("SwitchStatement", expression, breakInfo.BreakLabel, variables, sectionsExpr);
 
             BoundExpression visitSwitchSection(BoundSwitchSection section)
             {
