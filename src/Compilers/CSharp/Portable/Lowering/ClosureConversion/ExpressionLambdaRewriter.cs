@@ -1902,7 +1902,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression VisitPropertyAccess(BoundExpression receiverOpt, BoundPropertyAccess node)
         {
             var receiver = node.PropertySymbol.IsStatic ? _bound.Null(ExpressionType) : receiverOpt;
-            var getMethod = node.PropertySymbol.GetOwnOrInheritedGetMethod();
+            var accessorMethod = node.PropertySymbol.GetOwnOrInheritedGetMethod();
+
+            // NB: To support assignment to write-only properties, we need to pick up on setters if there's
+            //     no getter.
+            accessorMethod ??= node.PropertySymbol.GetOwnOrInheritedSetMethod();
 
             // COMPAT: see https://github.com/dotnet/roslyn/issues/4471
             //         old compiler used to insert casts like this and 
@@ -1918,10 +1922,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (node.ReceiverOpt?.Type.IsTypeParameter() == true &&
                 !node.ReceiverOpt.Type.IsReferenceType)
             {
-                receiver = this.Convert(receiver, getMethod.ReceiverType, isChecked: false);
+                receiver = this.Convert(receiver, accessorMethod.ReceiverType, isChecked: false);
             }
 
-            return ExprFactory("Property", receiver, _bound.MethodInfo(getMethod));
+            return ExprFactory("Property", receiver, _bound.MethodInfo(accessorMethod));
         }
 
         private static BoundExpression VisitSizeOfOperator(BoundSizeOfOperator node)
