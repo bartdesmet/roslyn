@@ -350,6 +350,7 @@ namespace Microsoft.CodeAnalysis
         Microsoft_CSharp_Expressions_CSharpCatchBlock,
         Microsoft_CSharp_Expressions_SwitchSection,
         Microsoft_CSharp_Expressions_SwitchLabel,
+        Microsoft_CSharp_Expressions_AwaitInfo,
 
         NextAvailable,
         // Remember to update the AllWellKnownTypes tests when making changes here
@@ -702,6 +703,8 @@ namespace Microsoft.CodeAnalysis
 
             "Microsoft.CSharp.Expressions.SwitchSection",
             "Microsoft.CSharp.Expressions.SwitchLabel",
+
+            "Microsoft.CSharp.Expressions.AwaitInfo",
         };
 
         private static readonly Dictionary<string, WellKnownType> s_nameToTypeIdMap = new Dictionary<string, WellKnownType>((int)Count);

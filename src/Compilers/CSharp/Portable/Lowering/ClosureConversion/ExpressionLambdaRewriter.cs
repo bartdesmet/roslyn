@@ -27,17 +27,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private int _recursionDepth;
 
         private NamedTypeSymbol _ExpressionType;
-        private NamedTypeSymbol ExpressionType
-        {
-            get
-            {
-                if ((object)_ExpressionType == null)
-                {
-                    _ExpressionType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_Expression);
-                }
-                return _ExpressionType;
-            }
-        }
+        private NamedTypeSymbol ExpressionType => _ExpressionType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_Expression);
 
         private NamedTypeSymbol _ExpressionTypeType;
         private NamedTypeSymbol ExpressionTypeType => _ExpressionTypeType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ExpressionType);
@@ -64,60 +54,20 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol CSharpBinderFlagsType => _CSharpBinderFlagsType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_RuntimeBinder_CSharpBinderFlags);
 
         private NamedTypeSymbol _CSharp_Expressions_InterpolationType;
-        private NamedTypeSymbol CSharp_Expressions_InterpolationType
-        {
-            get
-            {
-                if ((object)_CSharp_Expressions_InterpolationType == null)
-                {
-                    _CSharp_Expressions_InterpolationType = _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_Interpolation);
-                }
-                return _CSharp_Expressions_InterpolationType;
-            }
-        }
+        private NamedTypeSymbol CSharp_Expressions_InterpolationType => _CSharp_Expressions_InterpolationType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_Interpolation);
 
         private NamedTypeSymbol _CSharp_Expressions_ConversionType;
         private NamedTypeSymbol CSharp_Expressions_ConversionType => _CSharp_Expressions_ConversionType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_Conversion);
 
         private NamedTypeSymbol _ParameterExpressionType;
-        private NamedTypeSymbol ParameterExpressionType
-        {
-            get
-            {
-                if ((object)_ParameterExpressionType == null)
-                {
-                    _ParameterExpressionType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ParameterExpression);
-                }
-                return _ParameterExpressionType;
-            }
-        }
+        private NamedTypeSymbol ParameterExpressionType => _ParameterExpressionType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ParameterExpression);
 
         private NamedTypeSymbol _ElementInitType;
-        private NamedTypeSymbol ElementInitType
-        {
-            get
-            {
-                if ((object)_ElementInitType == null)
-                {
-                    _ElementInitType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ElementInit);
-                }
-                return _ElementInitType;
-            }
-        }
+        private NamedTypeSymbol ElementInitType => _ElementInitType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_ElementInit);
 
         private NamedTypeSymbol _MemberBindingType;
 
-        public NamedTypeSymbol MemberBindingType
-        {
-            get
-            {
-                if ((object)_MemberBindingType == null)
-                {
-                    _MemberBindingType = _bound.WellKnownType(WellKnownType.System_Linq_Expressions_MemberBinding);
-                }
-                return _MemberBindingType;
-            }
-        }
+        public NamedTypeSymbol MemberBindingType => _MemberBindingType ??= _bound.WellKnownType(WellKnownType.System_Linq_Expressions_MemberBinding);
 
         private readonly NamedTypeSymbol _int32Type;
 
@@ -128,17 +78,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly NamedTypeSymbol _nullableType;
 
         private NamedTypeSymbol _MemberInfoType;
-        private NamedTypeSymbol MemberInfoType
-        {
-            get
-            {
-                if ((object)_MemberInfoType == null)
-                {
-                    _MemberInfoType = _bound.WellKnownType(WellKnownType.System_Reflection_MemberInfo);
-                }
-                return _MemberInfoType;
-            }
-        }
+        private NamedTypeSymbol MemberInfoType => _MemberInfoType ??= _bound.WellKnownType(WellKnownType.System_Reflection_MemberInfo);
 
         private NamedTypeSymbol _MemberInitializerType;
 
@@ -147,6 +87,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         private NamedTypeSymbol _SwitchExpressionArmType;
 
         public NamedTypeSymbol SwitchExpressionArmType => _SwitchExpressionArmType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_SwitchExpressionArm);
+
+        private NamedTypeSymbol _AwaitInfoType;
+
+        public NamedTypeSymbol AwaitInfoType => _AwaitInfoType ??= _bound.WellKnownType(WellKnownType.Microsoft_CSharp_Expressions_AwaitInfo);
 
         private readonly NamedTypeSymbol _IEnumerableType;
 
@@ -660,6 +604,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitAwaitInfo(BoundAwaitableInfo node, bool resultDiscarded = false)
         {
+            if (node is null)
+            {
+                return _bound.Null(AwaitInfoType);
+            }
+
             if (node.IsDynamic)
             {
                 var ctx = _bound.TypeofDynamicOperationContextType();
