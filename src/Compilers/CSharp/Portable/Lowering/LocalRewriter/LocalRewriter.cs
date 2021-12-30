@@ -494,6 +494,21 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert(removed);
         }
 
+        private MethodArgumentInfo? QuoteMethodArgumentInfoCallWithNoExplicitArgument(MethodArgumentInfo? info, SyntaxNode syntax, TypeSymbol receiverType)
+        {
+            Debug.Assert(_inExpressionLambda);
+
+            if (info is { } i)
+            {
+                var localSymbol = _factory.SynthesizedParameter(receiverType, "t");
+                var receiver = new BoundParameter(syntax, localSymbol, receiverType);
+                var call = MakeCallWithNoExplicitArgument(i, syntax, receiver);
+                return new QuotedMethodArgumentInfo(i, receiver, call);
+            }
+
+            return null;
+        }
+
         public sealed override BoundNode VisitOutDeconstructVarPendingInference(OutDeconstructVarPendingInference node)
         {
             // OutDeconstructVarPendingInference nodes are only used within initial binding, but don't survive past that stage

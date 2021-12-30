@@ -34,21 +34,61 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return node;
             }
 
+            BoundExpression collectionExpression = GetUnconvertedCollectionExpression(node, out _);
+
             if (_inExpressionLambda)
             {
-                var rewrittenIterationErrorExpression = VisitExpression(node.IterationErrorExpressionOpt); // REVIEW
+                // REVIEW: We're using node.Expression instead of collectionExpression, which in conjunction with the
+                //         behavior in ExpressionLambdaRewriter.VisitConversion only inserts a conversion when needed.
+                //         However, it may be better to visit collectionExpression and capture a CollectionConversion
+                //         object, such that the tree has a shape that matches the syntax.
                 var rewrittenExpression = VisitExpression(node.Expression);
+
                 var rewrittenDeconstruction = (BoundForEachDeconstructStep?)Visit(node.DeconstructionOpt); // REVIEW
                 var rewrittenBody = VisitStatement(node.Body);
 
                 // REVIEW: No visit of ElementConversion; we don't have placeholder substitutions here.
+                var rewrittenElementConversion = node.ElementConversion;
 
-                return node.Update(node.EnumeratorInfoOpt, node.ElementPlaceholder, node.ElementConversion, node.IterationVariableType, node.IterationVariables, rewrittenIterationErrorExpression, rewrittenExpression, rewrittenDeconstruction, node.AwaitOpt, rewrittenBody!, node.BreakLabel, node.ContinueLabel);
+                var enumeratorInfo = node.EnumeratorInfoOpt;
+                Debug.Assert(enumeratorInfo != null); // NB: Only null when there was an error.
+
+                var collectionType = enumeratorInfo.CollectionType;
+                var getEnumeratorInfo = QuoteMethodArgumentInfoCallWithNoExplicitArgument(enumeratorInfo.GetEnumeratorInfo, node.Syntax, collectionType);
+
+                var enumeratorType = enumeratorInfo.GetEnumeratorInfo.Method.ReturnType;
+                var moveNextInfo = QuoteMethodArgumentInfoCallWithNoExplicitArgument(enumeratorInfo.MoveNextInfo, node.Syntax, enumeratorType);
+
+                var patternDisposeInfo = enumeratorInfo.PatternDisposeInfo is { } pd
+                    ? QuoteMethodArgumentInfoCallWithNoExplicitArgument(pd, node.Syntax, enumeratorType)
+                    : null;
+
+                // REVIEW: No visit of CurrentConversion; we don't have placeholder substitutions here.
+                var currentConversion = enumeratorInfo.CurrentConversion;
+
+                var enumeratorInfoBuilder = new ForEachEnumeratorInfo.Builder()
+                {
+                    CollectionType = collectionType,
+                    ElementTypeWithAnnotations = enumeratorInfo.ElementTypeWithAnnotations,
+                    GetEnumeratorInfo = getEnumeratorInfo,
+                    CurrentPropertyGetter = enumeratorInfo.CurrentPropertyGetter,
+                    MoveNextInfo = moveNextInfo,
+                    IsAsync = enumeratorInfo.IsAsync,
+                    NeedsDisposal = enumeratorInfo.NeedsDisposal,
+                    DisposeAwaitableInfo = enumeratorInfo.DisposeAwaitableInfo,
+                    PatternDisposeInfo = patternDisposeInfo,
+                    CurrentPlaceholder = enumeratorInfo.CurrentPlaceholder,
+                    CurrentConversion = currentConversion
+                };
+
+                var rewrittenEnumeratorInfo = enumeratorInfoBuilder.Build(enumeratorInfo.Location);
+
+                return node.Update(rewrittenEnumeratorInfo, node.ElementPlaceholder, rewrittenElementConversion, node.IterationVariableType, node.IterationVariables, node.IterationErrorExpressionOpt, rewrittenExpression, rewrittenDeconstruction, node.AwaitOpt, rewrittenBody!, node.BreakLabel, node.ContinueLabel);
             }
 
-            BoundExpression collectionExpression = GetUnconvertedCollectionExpression(node, out _);
             TypeSymbol? nodeExpressionType = collectionExpression.Type;
             Debug.Assert(nodeExpressionType is { });
+
             if (nodeExpressionType.Kind == SymbolKind.ArrayType)
             {
                 ArrayTypeSymbol arrayType = (ArrayTypeSymbol)nodeExpressionType;

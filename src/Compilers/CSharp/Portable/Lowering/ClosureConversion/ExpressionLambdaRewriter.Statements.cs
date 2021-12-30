@@ -760,7 +760,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             CurrentLambdaInfo.PushLoop(node.BreakLabel, node.ContinueLabel);
 
-            var awaitInfo = getAwaitInfo();
+            var enumeratorInfo = getEnumeratorInfo();
             var conversion = getConversionLambda();
             var deconstruction = getDeconstructionLambda();
             var body = Visit(node.Body);
@@ -770,16 +770,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
             PopLocals(node.IterationVariables);
 
-            // TODO: node.EnumeratorInfoOpt - add overloads that take in MethodInfo for GetEnumerator etc?
+            var awaitInfo = VisitAwaitInfo(node.AwaitOpt);
 
-            if (awaitInfo is not null)
-            {
-                return CSharpStmtFactory("AwaitForEach", variables, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion, deconstruction, awaitInfo);
-            }
-            else
-            {
-                return CSharpStmtFactory("ForEach", variables, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion, deconstruction);
-            }
+            return CSharpStmtFactory("ForEach", enumeratorInfo, awaitInfo, variables, expression, body, loopInfo.BreakLabel, loopInfo.ContinueLabel, conversion, deconstruction);
 
             BoundExpression getConversionLambda()
             {
@@ -830,14 +823,47 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return _bound.Null(LambdaExpressionType);
             }
 
-            BoundExpression? getAwaitInfo()
+            BoundExpression getEnumeratorInfo()
             {
-                if (node.AwaitOpt is not null)
-                {
-                    return VisitAwaitInfo(node.AwaitOpt);
-                }
+                Debug.Assert(node.EnumeratorInfoOpt != null); // NB: Only null when there was an error.
 
-                return null;
+                var info = node.EnumeratorInfoOpt;
+
+                var isAsync = _bound.Literal(info.IsAsync);
+                var collectionType = _bound.Typeof(info.CollectionType);
+                var getEnumeratorInfo = VisitMethodArgumentInfo(info.GetEnumeratorInfo);
+                var moveNextInfo = VisitMethodArgumentInfo(info.MoveNextInfo);
+                var currentPropertyGetter = _bound.MethodInfo(info.CurrentPropertyGetter);
+                var currentConversion = getCurrentConversionLambda();
+                var elementType = _bound.Typeof(info.ElementType);
+                var needsDisposal = _bound.Literal(info.NeedsDisposal);
+                var disposableAwaitInfo = VisitAwaitInfo(info.DisposeAwaitableInfo);
+                var patternDisposeInfo = VisitMethodArgumentInfo(info.PatternDisposeInfo);
+
+                return
+                    CSharpExprFactory(
+                        "EnumeratorInfo",
+                        isAsync,
+                        collectionType,
+                        getEnumeratorInfo,
+                        moveNextInfo,
+                        currentPropertyGetter,
+                        currentConversion,
+                        elementType,
+                        needsDisposal,
+                        disposableAwaitInfo,
+                        patternDisposeInfo
+                    );
+
+                BoundExpression getCurrentConversionLambda()
+                {
+                    if (info?.CurrentConversion is { } currentConversion)
+                    {
+                        return MakeConversionLambda(info.CurrentPlaceholder, info.CurrentConversion);
+                    }
+
+                    return _bound.Null(LambdaExpressionType);
+                }
             }
         }
 
@@ -901,34 +927,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitUsing(BoundUsingStatement node)
         {
-            BoundExpression createPatternDisposeLambda()
-            {
-                if (node.PatternDisposeInfoOpt is QuotedMethodArgumentInfo { Receiver: var receiver, Call: var call })
-                {
-                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
-                    var inputParam = ExprFactory("Parameter", _bound.Typeof(receiver.Type), _bound.Literal(receiver.ParameterSymbol.Name));
-
-                    _parameterMap.Add(receiver.ParameterSymbol, inputParamExpr);
-
-                    var callExpr = Visit(call);
-
-                    _parameterMap.Remove(receiver.ParameterSymbol);
-
-                    return _bound.Sequence(
-                        ImmutableArray.Create(inputParamExprSymbol),
-                        ImmutableArray.Create<BoundExpression>(
-                            _bound.AssignmentExpression(inputParamExpr, inputParam)
-                        ),
-                        ExprFactory(
-                            "Lambda",
-                            callExpr,
-                            _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
-                }
-
-                return _bound.Null(LambdaExpressionType);
-            }
-
             var locals = PushLocals(node.Locals);
 
             BoundExpression resource;
@@ -950,18 +948,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var variables =_bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
 
-            var patternDispose = createPatternDisposeLambda();
+            var awaitInfo = VisitAwaitInfo(node.AwaitOpt);
+            var patternDispose = VisitMethodArgumentInfo(node.PatternDisposeInfoOpt);
 
-            if (node.AwaitOpt is not null)
-            {
-                var awaitInfo = VisitAwaitInfo(node.AwaitOpt);
-
-                return CSharpStmtFactory("AwaitUsing", variables, resource, body, awaitInfo, patternDispose);
-            }
-            else
-            {
-                return CSharpStmtFactory("Using", variables, resource, body, patternDispose);
-            }
+            return CSharpStmtFactory("Using", awaitInfo, variables, resource, body, patternDispose);
         }
 
         private BoundExpression VisitTry(BoundTryStatement node)
@@ -1072,6 +1062,34 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             var label = CurrentLambdaInfo.GetOrAddLabel(node.Label);
             return CSharpStmtFactory("Label", label);
+        }
+
+        private BoundExpression VisitMethodArgumentInfo(MethodArgumentInfo? info)
+        {
+            if (info is QuotedMethodArgumentInfo { Receiver: var receiver, Call: var call })
+            {
+                var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                var inputParamExpr = _bound.Local(inputParamExprSymbol);
+                var inputParam = ExprFactory("Parameter", _bound.Typeof(receiver.Type), _bound.Literal(receiver.ParameterSymbol.Name));
+
+                _parameterMap.Add(receiver.ParameterSymbol, inputParamExpr);
+
+                var callExpr = Visit(call);
+
+                _parameterMap.Remove(receiver.ParameterSymbol);
+
+                return _bound.Sequence(
+                    ImmutableArray.Create(inputParamExprSymbol),
+                    ImmutableArray.Create<BoundExpression>(
+                        _bound.AssignmentExpression(inputParamExpr, inputParam)
+                    ),
+                    ExprFactory(
+                        "Lambda",
+                        callExpr,
+                        _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
+            }
+
+            return _bound.Null(LambdaExpressionType);
         }
 
         private LambdaCompilationInfo CurrentLambdaInfo

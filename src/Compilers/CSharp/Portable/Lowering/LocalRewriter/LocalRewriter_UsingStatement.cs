@@ -553,6 +553,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private MethodArgumentInfo? QuotePatternDispose(BoundUsingStatement node)
         {
+            Debug.Assert(_inExpressionLambda);
+            
             if (node.PatternDisposeInfoOpt is { } patternDispose)
             {
                 TypeSymbol type;
@@ -572,10 +574,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     type = type.StrippedType();
                 }
 
-                var localSymbol = _factory.SynthesizedParameter(type, "d");
-                var receiver = new BoundParameter(node.Syntax, localSymbol, type);
-                var call = MakeCallWithNoExplicitArgument(patternDispose, node.Syntax, receiver);
-                return new QuotedMethodArgumentInfo(patternDispose, receiver, call);
+                return QuoteMethodArgumentInfoCallWithNoExplicitArgument(patternDispose, node.Syntax, type);
             }
 
             return null;
