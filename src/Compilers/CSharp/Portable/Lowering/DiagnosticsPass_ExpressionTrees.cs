@@ -968,22 +968,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitIsPatternExpression(node);
         }
 
-        public override BoundNode VisitListPattern(BoundListPattern node)
-        {
-            // NB: List and slice patterns are vNext; ignore for now.
-            CheckPatternInExpressionTree(node);
-
-            return base.VisitListPattern(node);
-        }
-
-        public override BoundNode VisitSlicePattern(BoundSlicePattern node)
-        {
-            // NB: List and slice patterns are vNext; ignore for now.
-            CheckPatternInExpressionTree(node);
-
-            return base.VisitSlicePattern(node);
-        }
-
         private void CheckPatternInExpressionTree(BoundNode node)
         {
             if (_inExpressionLambda)

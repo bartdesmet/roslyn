@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -94,15 +95,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDeclarationPattern((BoundDeclarationPattern)node);
                 case BoundKind.RecursivePattern:
                     return VisitRecursivePattern((BoundRecursivePattern)node);
-
-                /*
-                 * NB: List and slice patterns are vNext; ignore for now.
                 case BoundKind.SlicePattern:
-                    // BoundSlicePattern { Pattern, IndexerAccess, ReceiverPlaceholder, ArgumentPlaceholder }
+                    return VisitSlicePattern((BoundSlicePattern)node);
                 case BoundKind.ListPattern:
-                    // BoundListPattern { Variable, Subpatterns, HasSlice, LengthAccess, IndexerAccess, ReceiverPlaceholder, ArgumentPlaceholder }
-                 */
-                
+                    return VisitListPattern((BoundListPattern)node);
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
             }
@@ -214,6 +210,127 @@ namespace Microsoft.CodeAnalysis.CSharp
                 _bound.Typeof(f.Type)
             );
 
+        private BoundExpression VisitListPattern(BoundListPattern node)
+        {
+            return CSharpPatternFactory(
+                "List",
+                ObjectPatternInfo(node),
+                makeAccessLambda(node.LengthAccess!, hasArgument: false),
+                makeAccessLambda(node.IndexerAccess!, hasArgument: true),
+                VisitPatterns(node.Subpatterns)
+            );
+
+            BoundExpression makeAccessLambda(BoundExpression accessExpr, bool hasArgument)
+            {
+                var locals = ImmutableArray.CreateBuilder<LocalSymbol>(2);
+                var lambdaParams = ImmutableArray.CreateBuilder<BoundExpression>(2);
+                var assignments = ImmutableArray.CreateBuilder<BoundExpression>(2);
+
+                var receiverParameterSymbol = _bound.SynthesizedParameter(node.ReceiverPlaceholder!.Type, "o");
+                var receiverParameter = _bound.Parameter(receiverParameterSymbol);
+                var receiverParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                var receiverParamExpr = _bound.Local(receiverParamExprSymbol);
+                var receiverParam = ExprFactory("Parameter", _bound.Typeof(node.ReceiverPlaceholder!.Type), _bound.Literal("o"));
+                locals.Add(receiverParamExprSymbol);
+                assignments.Add(_bound.AssignmentExpression(receiverParamExpr, receiverParam));
+                lambdaParams.Add(receiverParamExpr);
+                _parameterMap.Add(receiverParameterSymbol, receiverParamExpr);
+
+                ParameterSymbol? argParameterSymbol = null;
+                BoundParameter? argParameter = null;
+
+                if (hasArgument)
+                {
+                    argParameterSymbol = _bound.SynthesizedParameter(node.ArgumentPlaceholder!.Type, "i");
+                    argParameter = _bound.Parameter(argParameterSymbol);
+                    var argParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                    var argParamExpr = _bound.Local(argParamExprSymbol);
+                    var argParam = ExprFactory("Parameter", _bound.Typeof(node.ArgumentPlaceholder!.Type), _bound.Literal("i"));
+                    locals.Add(argParamExprSymbol);
+                    assignments.Add(_bound.AssignmentExpression(argParamExpr, argParam));
+                    lambdaParams.Add(argParamExpr);
+                    _parameterMap.Add(argParameterSymbol, argParamExpr);
+                }
+
+                var subst = new ListPatternPlaceholderSubstitutor(node.ReceiverPlaceholder, receiverParameter, node.ArgumentPlaceholder, argParameter);
+
+                var rewrittenAccess = (BoundExpression)subst.Visit(accessExpr);
+                var body = Visit(rewrittenAccess);
+
+                if (hasArgument)
+                {
+                    _parameterMap.Remove(argParameterSymbol);
+                }
+
+                _parameterMap.Remove(receiverParameterSymbol);
+
+                var result = _bound.Sequence(
+                    locals.ToImmutable(),
+                    assignments.ToImmutable(),
+                    ExprFactory(
+                        "Lambda",
+                        body,
+                        _bound.ArrayOrEmpty(ParameterExpressionType, lambdaParams.ToImmutable())));
+
+                return result;
+            }
+        }
+
+        private BoundExpression VisitSlicePattern(BoundSlicePattern node)
+        {
+            return CSharpPatternFactory(
+                "Slice",
+                PatternInfo(node),
+                node.IndexerAccess != null ? makeAccessLambda(node.IndexerAccess) : _bound.Null(LambdaExpressionType),
+                node.Pattern != null ? Visit(node.Pattern) : _bound.Null(CSharpPatternType)
+            );
+
+            BoundExpression makeAccessLambda(BoundExpression accessExpr)
+            {
+                var locals = ImmutableArray.CreateBuilder<LocalSymbol>(2);
+                var lambdaParams = ImmutableArray.CreateBuilder<BoundExpression>(2);
+                var assignments = ImmutableArray.CreateBuilder<BoundExpression>(2);
+
+                var receiverParameterSymbol = _bound.SynthesizedParameter(node.ReceiverPlaceholder!.Type, "o");
+                var receiverParameter = _bound.Parameter(receiverParameterSymbol);
+                var receiverParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                var receiverParamExpr = _bound.Local(receiverParamExprSymbol);
+                var receiverParam = ExprFactory("Parameter", _bound.Typeof(node.ReceiverPlaceholder!.Type), _bound.Literal("o"));
+                locals.Add(receiverParamExprSymbol);
+                assignments.Add(_bound.AssignmentExpression(receiverParamExpr, receiverParam));
+                lambdaParams.Add(receiverParamExpr);
+                _parameterMap.Add(receiverParameterSymbol, receiverParamExpr);
+
+                var argParameterSymbol = _bound.SynthesizedParameter(node.ArgumentPlaceholder!.Type, "i");
+                var argParameter = _bound.Parameter(argParameterSymbol);
+                var argParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
+                var argParamExpr = _bound.Local(argParamExprSymbol);
+                var argParam = ExprFactory("Parameter", _bound.Typeof(node.ArgumentPlaceholder!.Type), _bound.Literal("i"));
+                locals.Add(argParamExprSymbol);
+                assignments.Add(_bound.AssignmentExpression(argParamExpr, argParam));
+                lambdaParams.Add(argParamExpr);
+                _parameterMap.Add(argParameterSymbol, argParamExpr);
+
+                var subst = new SlicePatternPlaceholderSubstitutor(node.ReceiverPlaceholder, receiverParameter, node.ArgumentPlaceholder, argParameter);
+
+                var rewrittenAccess = (BoundExpression)subst.Visit(accessExpr);
+                var body = Visit(rewrittenAccess);
+
+                _parameterMap.Remove(argParameterSymbol);
+                _parameterMap.Remove(receiverParameterSymbol);
+
+                var result = _bound.Sequence(
+                    locals.ToImmutable(),
+                    assignments.ToImmutable(),
+                    ExprFactory(
+                        "Lambda",
+                        body,
+                        _bound.ArrayOrEmpty(ParameterExpressionType, lambdaParams.ToImmutable())));
+
+                return result;
+            }
+        }
+
         private BoundExpression VisitSubpatterns<T>(ImmutableArray<T> nodes, Func<T, BoundExpression> visit, TypeSymbol type)
             where T : BoundSubpattern
         {
@@ -228,6 +345,21 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return _bound.Array(type, patterns.ToImmutableAndFree());
+        }
+
+        private BoundExpression VisitPatterns(ImmutableArray<BoundPattern> nodes)
+        {
+            var patterns = ArrayBuilder<BoundExpression>.GetInstance();
+
+            if (!nodes.IsDefaultOrEmpty)
+            {
+                foreach (var node in nodes)
+                {
+                    patterns.Add(Visit(node));
+                }
+            }
+
+            return _bound.Array(CSharpPatternType, patterns.ToImmutableAndFree());
         }
 
         private BoundExpression VisitPropertySubpattern(BoundPropertySubpattern node) =>
@@ -298,6 +430,82 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundExpression CSharpPatternFactory(string name, params BoundExpression[] arguments)
         {
             return _bound.StaticCall(CSharpPatternType, name, arguments);
+        }
+
+        private sealed class ListPatternPlaceholderSubstitutor : BoundTreeRewriterWithStackGuard
+        {
+            private readonly BoundListPatternReceiverPlaceholder? _receiverPlaceholder;
+            private readonly BoundExpression? _receiverReplacement;
+            private readonly BoundListPatternIndexPlaceholder? _indexPlaceholder;
+            private readonly BoundExpression? _indexReplacement;
+
+            public ListPatternPlaceholderSubstitutor(
+                BoundListPatternReceiverPlaceholder? receiverPlaceholder, BoundExpression? receiverReplacement,
+                BoundListPatternIndexPlaceholder? indexPlaceholder, BoundExpression? indexReplacement)
+            {
+                _receiverPlaceholder = receiverPlaceholder;
+                _receiverReplacement = receiverReplacement;
+                _indexPlaceholder = indexPlaceholder;
+                _indexReplacement = indexReplacement;
+            }
+
+            public override BoundNode VisitListPatternReceiverPlaceholder(BoundListPatternReceiverPlaceholder node)
+            {
+                if (node == _receiverPlaceholder)
+                {
+                    return _receiverReplacement!;
+                }
+                
+                return node;
+            }
+
+            public override BoundNode VisitListPatternIndexPlaceholder(BoundListPatternIndexPlaceholder node)
+            {
+                if (node == _indexPlaceholder)
+                {
+                    return _indexReplacement!;
+                }
+                
+                return node;
+            }
+        }
+
+        private sealed class SlicePatternPlaceholderSubstitutor : BoundTreeRewriterWithStackGuard
+        {
+            private readonly BoundSlicePatternReceiverPlaceholder? _receiverPlaceholder;
+            private readonly BoundExpression? _receiverReplacement;
+            private readonly BoundSlicePatternRangePlaceholder? _rangePlaceholder;
+            private readonly BoundExpression? _rangeReplacement;
+
+            public SlicePatternPlaceholderSubstitutor(
+                BoundSlicePatternReceiverPlaceholder? receiverPlaceholder, BoundExpression? receiverReplacement,
+                BoundSlicePatternRangePlaceholder? rangePlaceholder, BoundExpression? rangeReplacement)
+            {
+                _receiverPlaceholder = receiverPlaceholder;
+                _receiverReplacement = receiverReplacement;
+                _rangePlaceholder = rangePlaceholder;
+                _rangeReplacement = rangeReplacement;
+            }
+
+            public override BoundNode VisitSlicePatternReceiverPlaceholder(BoundSlicePatternReceiverPlaceholder node)
+            {
+                if (node == _receiverPlaceholder)
+                {
+                    return _receiverReplacement!;
+                }
+                
+                return node;
+            }
+
+            public override BoundNode VisitSlicePatternRangePlaceholder(BoundSlicePatternRangePlaceholder node)
+            {
+                if (node == _rangePlaceholder)
+                {
+                    return _rangeReplacement!;
+                }
+                
+                return node;
+            }
         }
     }
 }

@@ -2552,7 +2552,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             public override BoundNode VisitDeconstructValuePlaceholder(BoundDeconstructValuePlaceholder node)
             {
-                return _replacements[node];
+                if (_replacements.TryGetValue(node, out var res))
+                {
+                    return res;
+                }
+                
+                return node;
             }
         }
 
