@@ -110,3 +110,7 @@ public class Quote<T>
 ```
 
 In this case, we simply subset the available expressions in `System.Linq.Expressions` and introduce a wrapper for `Expression<T>` to build the top-level `Quote<T>`. However, it's equally valid for the user to provide alternative implementations of these node types by returning different types from these factory methods.
+
+## Example
+
+An example of this feature, documenting all of the expression tree factory methods, is included in [ExpressionTypes.cs](./ExpressionTypes.cs).
