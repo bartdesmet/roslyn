@@ -394,18 +394,22 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         /// Returns true if the type is constructed from a generic type named "System.Linq.Expressions.Expression"
         /// with one type parameter.
         /// </summary>
-        public static bool IsExpressionTree(this TypeSymbol type)
+        public static bool IsExpressionTree(this TypeSymbol type) => type.IsExpressionTree(out _);
+        
+        public static bool IsExpressionTree(this TypeSymbol type, out bool isCustomExpressionTreeType)
         {
-            return type.IsGenericOrNonGenericExpressionType(out bool isGenericType) && isGenericType;
+            return type.IsGenericOrNonGenericExpressionType(out bool isGenericType, out isCustomExpressionTreeType) && isGenericType;
         }
 
         /// <summary>
         /// Returns true if the type is a non-generic type named "System.Linq.Expressions.Expression"
         /// or "System.Linq.Expressions.LambdaExpression".
         /// </summary>
-        public static bool IsNonGenericExpressionType(this TypeSymbol type)
+        public static bool IsNonGenericExpressionType(this TypeSymbol type) => type.IsNonGenericExpressionType(out _);
+
+        public static bool IsNonGenericExpressionType(this TypeSymbol type, out bool isCustomExpressionTreeType)
         {
-            return type.IsGenericOrNonGenericExpressionType(out bool isGenericType) && !isGenericType;
+            return type.IsGenericOrNonGenericExpressionType(out bool isGenericType, out isCustomExpressionTreeType) && !isGenericType;
         }
 
         /// <summary>
@@ -413,7 +417,9 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         /// with one type parameter, or if the type is a non-generic type named "System.Linq.Expressions.Expression"
         /// or "System.Linq.Expressions.LambdaExpression".
         /// </summary>
-        public static bool IsGenericOrNonGenericExpressionType(this TypeSymbol _type, out bool isGenericType)
+        public static bool IsGenericOrNonGenericExpressionType(this TypeSymbol _type, out bool isGenericType) => _type.IsGenericOrNonGenericExpressionType(out isGenericType, out _);
+        
+        public static bool IsGenericOrNonGenericExpressionType(this TypeSymbol _type, out bool isGenericType, out bool isCustomExpressionTreeType)
         {
             if (_type.OriginalDefinition is NamedTypeSymbol type)
             {
@@ -425,12 +431,14 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                             if (type.Arity == 0)
                             {
                                 isGenericType = false;
+                                isCustomExpressionTreeType = false;
                                 return true;
                             }
                             if (type.Arity == 1 &&
                                 type.MangleName)
                             {
                                 isGenericType = true;
+                                isCustomExpressionTreeType = false;
                                 return true;
                             }
                         }
@@ -440,6 +448,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                             type.Arity == 0)
                         {
                             isGenericType = false;
+                            isCustomExpressionTreeType = false;
                             return true;
                         }
                         break;
@@ -448,10 +457,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                 if (IsCustomExpressionType(type, out _))
                 {
                     isGenericType = type.Arity == 1 && type.MangleName;
+                    isCustomExpressionTreeType = true;
                     return true;
                 }
             }
             isGenericType = false;
+            isCustomExpressionTreeType = false;
             return false;
         }
 

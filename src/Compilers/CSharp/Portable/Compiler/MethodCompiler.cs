@@ -1420,6 +1420,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 if (sawLambdas || sawLocalFunctions)
                 {
                     bodyWithoutLambdas = ClosureConversion.Rewrite(
+                        method.DeclaringCompilation,
                         loweredBody,
                         method.ContainingType,
                         method.ThisParameter,

@@ -144,6 +144,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                     ref argumentRefKindsOpt,
                     ref temps);
 
+                if (_inExpressionLambdaWithCustomExpressionTreeType)
+                {
+                    return oldNodeOpt != null ?
+                        oldNodeOpt.Update(rewrittenReceiver, indexer, rewrittenArguments, argumentNamesOpt, argumentRefKindsOpt, expanded, argsToParamsOpt, oldNodeOpt.DefaultArguments, oldNodeOpt.OriginalIndexersOpt, type) :
+                        new BoundIndexerAccess(syntax, rewrittenReceiver, indexer, rewrittenArguments, argumentNamesOpt, argumentRefKindsOpt, expanded, argsToParamsOpt, defaultArguments, type);
+                }
+
                 BoundExpression call = MakePropertyGetAccess(syntax, rewrittenReceiver, indexer, rewrittenArguments, getMethod);
 
                 if (temps.Count == 0)

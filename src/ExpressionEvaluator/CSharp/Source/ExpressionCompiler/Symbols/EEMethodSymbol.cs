@@ -616,6 +616,7 @@ namespace Microsoft.CodeAnalysis.CSharp.ExpressionEvaluator
                         var lambdaDebugInfoBuilder = ArrayBuilder<LambdaDebugInfo>.GetInstance();
 
                         body = ClosureConversion.Rewrite(
+                            compilation,
                             loweredBody: body,
                             thisType: this.SubstitutedSourceMethod.ContainingType,
                             thisParameter: _thisParameter,

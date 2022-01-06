@@ -70,6 +70,7 @@ namespace Microsoft.CodeAnalysis.CSharp
     /// </summary>
     internal sealed partial class ClosureConversion : MethodToClassRewriter
     {
+        private readonly CSharpCompilation _compilation;
         private readonly Analysis _analysis;
         private readonly MethodSymbol _topLevelMethod;
         private readonly MethodSymbol _substitutedSourceMethod;
@@ -151,6 +152,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 #nullable enable
 
         private ClosureConversion(
+            CSharpCompilation compilation,
             Analysis analysis,
             NamedTypeSymbol thisType,
             ParameterSymbol thisParameterOpt,
@@ -170,6 +172,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             RoslynDebug.Assert(compilationState != null);
             RoslynDebug.Assert(diagnostics != null);
 
+            _compilation = compilation;
             _topLevelMethod = method;
             _substitutedSourceMethod = substitutedSourceMethod;
             _topLevelMethodOrdinal = methodOrdinal;
@@ -207,6 +210,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// MethodBodyCompiler.  See this class' documentation
         /// for a more thorough explanation of the algorithm and its use by clients.
         /// </summary>
+        /// <param name="compilation">The current compilation</param>
         /// <param name="loweredBody">The bound node to be rewritten</param>
         /// <param name="thisType">The type of the top-most frame</param>
         /// <param name="thisParameter">The "this" parameter in the top-most frame, or null if static method</param>
@@ -220,6 +224,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <param name="diagnostics">Diagnostic bag for diagnostics</param>
         /// <param name="assignLocals">The set of original locals that should be assigned to proxies if lifted</param>
         public static BoundStatement Rewrite(
+            CSharpCompilation compilation,
             BoundStatement loweredBody,
             NamedTypeSymbol thisType,
             ParameterSymbol thisParameter,
@@ -250,6 +255,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             CheckLocalsDefined(loweredBody);
             var rewriter = new ClosureConversion(
+                compilation,
                 analysis,
                 thisType,
                 thisParameter,
@@ -1569,7 +1575,28 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var newType = VisitType(node.Type);
                 var newBody = (BoundBlock)Visit(node.Body);
                 node = node.Update(node.UnboundLambda, node.Symbol, newBody, node.Diagnostics, node.Binder, newType);
-                var result0 = wasInExpressionLambda ? node : ExpressionLambdaRewriter.RewriteLambda(node, CompilationState, TypeMap, RecursionDepth, Diagnostics);
+
+                BoundNode RewriteExpressionLambda(BoundLambda lambdaNode)
+                {
+                    BoundExpression Lower(BoundExpression expression)
+                    {
+                        var dynamicAnalysisSpans = ImmutableArray<SourceSpan>.Empty;
+
+                        return LocalRewriter.Rewrite(
+                            _compilation,
+                            _topLevelMethod,
+                            _topLevelMethodOrdinal,
+                            containingType: null,
+                            expression,
+                            CompilationState,
+                            allowOmissionOfConditionalCalls: false,
+                            Diagnostics);
+                    }
+
+                    return ExpressionLambdaRewriter.RewriteLambda(lambdaNode, CompilationState, TypeMap, RecursionDepth, Diagnostics, Lower);
+                }
+
+                var result0 = wasInExpressionLambda ? node : RewriteExpressionLambda(node);
                 _inExpressionLambda = wasInExpressionLambda;
                 return result0;
             }

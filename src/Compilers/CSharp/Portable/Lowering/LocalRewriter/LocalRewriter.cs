@@ -30,6 +30,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly int _topLevelMethodOrdinal;
         private DelegateCacheRewriter? _lazyDelegateCacheRewriter;
         private bool _inExpressionLambda;
+        private bool _inExpressionLambdaWithCustomExpressionTreeType;
 
         private bool _sawAwait;
         private bool _sawAwaitInExceptionHandler;
@@ -135,6 +136,53 @@ namespace Microsoft.CodeAnalysis.CSharp
                 diagnostics.Add(ex.Diagnostic);
                 sawLambdas = sawLocalFunctions = sawAwaitInExceptionHandler = false;
                 return new BoundBadStatement(statement.Syntax, ImmutableArray.Create<BoundNode>(statement), hasErrors: true);
+            }
+        }
+
+        /// <summary>
+        /// Lower a block of code by performing local rewritings.
+        /// </summary>
+        public static BoundExpression Rewrite(
+            CSharpCompilation compilation,
+            MethodSymbol method,
+            int methodOrdinal,
+            NamedTypeSymbol containingType,
+            BoundExpression expression,
+            TypeCompilationState compilationState,
+            bool allowOmissionOfConditionalCalls,
+            BindingDiagnosticBag diagnostics)
+        {
+            Debug.Assert(expression != null);
+            Debug.Assert(compilationState != null);
+
+            try
+            {
+                var factory = new SyntheticBoundNodeFactory(method, expression.Syntax, compilationState, diagnostics);
+
+                // We don’t want IL to differ based upon whether we write the PDB to a file/stream or not.
+                // Presence of sequence points in the tree affects final IL, therefore, we always generate them.
+                var localRewriter = new LocalRewriter(compilation, method, methodOrdinal, rootStatement: null!, containingType, factory, previousSubmissionFields: null!, allowOmissionOfConditionalCalls, diagnostics,
+                                                      DebugInfoInjector.Singleton);
+                expression.CheckLocalsDefined();
+                var loweredExpression = localRewriter.VisitExpression(expression);
+                Debug.Assert(loweredExpression is { });
+                loweredExpression.CheckLocalsDefined();
+
+                Debug.Assert(!localRewriter._sawLambdas);
+                Debug.Assert(localRewriter._availableLocalFunctionOrdinal == 0);
+                Debug.Assert(!localRewriter._sawAwaitInExceptionHandler);
+                Debug.Assert(!localRewriter._needsSpilling);
+
+#if DEBUG
+                LocalRewritingValidator.Validate(loweredExpression);
+                localRewriter.AssertNoPlaceholderReplacements();
+#endif
+                return loweredExpression;
+            }
+            catch (SyntheticBoundNodeFactory.MissingPredefinedMember ex)
+            {
+                diagnostics.Add(ex.Diagnostic);
+                return new BoundBadExpression(expression.Syntax, LookupResultKind.Empty, ImmutableArray<Symbol?>.Empty, ImmutableArray.Create<BoundExpression>(expression), expression.Type!);
             }
         }
 
@@ -555,17 +603,22 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitTypeOfOperator(BoundTypeOfOperator node)
         {
-            Debug.Assert(node.GetTypeFromHandle is null);
-
             var sourceType = (BoundTypeExpression?)this.Visit(node.SourceType);
             Debug.Assert(sourceType is { });
             var type = this.VisitType(node.Type);
 
             // Emit needs this helper
             MethodSymbol getTypeFromHandle;
-            if (!TryGetWellKnownTypeMember(node.Syntax, WellKnownMember.System_Type__GetTypeFromHandle, out getTypeFromHandle))
+            if (node.GetTypeFromHandle is null)
             {
-                return new BoundTypeOfOperator(node.Syntax, sourceType, null, type, hasErrors: true);
+                if (!TryGetWellKnownTypeMember(node.Syntax, WellKnownMember.System_Type__GetTypeFromHandle, out getTypeFromHandle))
+                {
+                    return new BoundTypeOfOperator(node.Syntax, sourceType, null, type, hasErrors: true);
+                }
+            }
+            else
+            {
+                getTypeFromHandle = node.GetTypeFromHandle;
             }
 
             return node.Update(sourceType, getTypeFromHandle, type);
@@ -573,16 +626,21 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitRefTypeOperator(BoundRefTypeOperator node)
         {
-            Debug.Assert(node.GetTypeFromHandle is null);
-
             var operand = this.VisitExpression(node.Operand);
             var type = this.VisitType(node.Type);
 
             // Emit needs this helper
             MethodSymbol getTypeFromHandle;
-            if (!TryGetWellKnownTypeMember(node.Syntax, WellKnownMember.System_Type__GetTypeFromHandle, out getTypeFromHandle))
+            if (node.GetTypeFromHandle is null)
             {
-                return new BoundRefTypeOperator(node.Syntax, operand, null, type, hasErrors: true);
+                if (!TryGetWellKnownTypeMember(node.Syntax, WellKnownMember.System_Type__GetTypeFromHandle, out getTypeFromHandle))
+                {
+                    return new BoundRefTypeOperator(node.Syntax, operand, null, type, hasErrors: true);
+                }
+            }
+            else
+            {
+                getTypeFromHandle = node.GetTypeFromHandle;   
             }
 
             return node.Update(operand, getTypeFromHandle, type);

@@ -58,10 +58,21 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             var rewrittenType = VisitType(node.Type);
 
-            bool wasInExpressionLambda = _inExpressionLambda;
-            _inExpressionLambda = _inExpressionLambda || (node.ConversionKind == ConversionKind.AnonymousFunction && !wasInExpressionLambda && rewrittenType.IsExpressionTree());
+            var (wasInExpressionLambda, wasCustomExpressionTreeType) = (_inExpressionLambda, _inExpressionLambdaWithCustomExpressionTreeType);
+
+            // TODO-ETLIKE: We could store the custom builder type here (rather than a Boolean flag) so that lowering steps
+            //              could peek into the type, e.g. to provide better error messages if a factory method is not available,
+            //              or even to go one route versus another based on some checks.
+
+            if (node.ConversionKind == ConversionKind.AnonymousFunction && rewrittenType.IsExpressionTree(out var customExpressionTreeType))
+            {
+                _inExpressionLambda = true;
+                _inExpressionLambdaWithCustomExpressionTreeType = customExpressionTreeType;
+            }
+            
             var rewrittenOperand = VisitExpression(node.Operand);
-            _inExpressionLambda = wasInExpressionLambda;
+            
+            (_inExpressionLambda, _inExpressionLambdaWithCustomExpressionTreeType) = (wasInExpressionLambda, wasCustomExpressionTreeType);
 
             var result = MakeConversionNode(node, node.Syntax, rewrittenOperand, node.Conversion, node.Checked, node.ExplicitCastInCode, node.ConstantValue, rewrittenType);
 
