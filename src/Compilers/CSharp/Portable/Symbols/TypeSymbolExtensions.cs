@@ -472,13 +472,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
             if (TryGetExpressionBuilder(_type, out var builderArg) && builderArg is NamedTypeSymbol _builderType)
             {
-                // NB: For now, we only support expression types parameterized by a delegate type (similar to Expression<TDelegate>).
-
-                if (_type is NamedTypeSymbol type && type.Arity == 1)
-                {
-                    builderType = _builderType;
-                    return true;
-                }
+                builderType = _builderType;
+                return true;
             }
 
             builderType = null;
@@ -511,10 +506,9 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                     method.RefKind == RefKind.None &&
                     method.ReturnType is NamedTypeSymbol returnType &&
                     returnType.IsGenericType &&
-                    returnType.Arity == 1 &&
-                    method.TypeParameters[0].Equals(returnType.TypeParameters[0], TypeCompareKind.AllIgnoreOptions))
+                    returnType.Arity == 1) // TODO-ETLIKE: Should we check that Lambda<T> returns an Expression<T> where T equals?
                 {
-                    var candidateGenericExpressionType = returnType.ConstructUnboundGenericType();
+                    var candidateGenericExpressionType = returnType.ConstructedFrom;
 
                     if (genericExpressionType is null)
                     {

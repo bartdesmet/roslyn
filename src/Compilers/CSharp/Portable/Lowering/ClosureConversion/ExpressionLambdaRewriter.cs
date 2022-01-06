@@ -549,6 +549,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 right = _bound.Default(left.Type);
             }
 
+
             // Enums are handled as per their promoted underlying type
             switch (opKind.OperandTypes())
             {
@@ -578,7 +579,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundExpression DemoteEnumOperand(BoundExpression operand)
+        private static BoundExpression DemoteEnumOperand(BoundExpression operand)
         {
             if (operand.Kind == BoundKind.Conversion)
             {
@@ -1116,11 +1117,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             var result = _bound.Sequence(locals.ToImmutableAndFree(), initializers.ToImmutableAndFree(), lambda);
-
-            //if (!_usingOriginalExpressionType)
-            //{
-            //    result = Lower(result); // TODO-ETLIKE: See nodes in Lower.
-            //}
 
             foreach (var p in node.Symbol.Parameters)
             {
