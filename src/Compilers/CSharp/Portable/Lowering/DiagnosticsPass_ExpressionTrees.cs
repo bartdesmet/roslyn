@@ -968,14 +968,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.VisitIsPatternExpression(node);
         }
 
-        private void CheckPatternInExpressionTree(BoundNode node)
-        {
-            if (_inExpressionLambda)
-            {
-                Error(ErrorCode.ERR_ExpressionTreeContainsIsMatch, node);
-            }   
-        }
-
         public override BoundNode VisitConvertedTupleLiteral(BoundConvertedTupleLiteral node)
         {
             if (_inExpressionLambda && !HasCSharpExpression)
