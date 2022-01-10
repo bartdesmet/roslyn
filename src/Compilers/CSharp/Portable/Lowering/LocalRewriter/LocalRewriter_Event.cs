@@ -21,6 +21,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression? rewrittenReceiverOpt = VisitExpression(node.ReceiverOpt);
             BoundExpression rewrittenArgument = VisitExpression(node.Argument);
 
+            if (_inExpressionLambda)
+            {
+                return node.Update(node.Event, node.IsAddition, node.IsDynamic, rewrittenReceiverOpt, rewrittenArgument, node.Type);
+            }
+
             if (rewrittenReceiverOpt != null && node.Event.ContainingAssembly.IsLinked && node.Event.ContainingType.IsInterfaceType())
             {
                 var @interface = node.Event.ContainingType;

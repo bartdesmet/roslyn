@@ -346,6 +346,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+        private BoundExpression VisitEventAssignmentOperator(BoundEventAssignmentOperator node)
+        {
+            // NB: node.IsDynamic is not used during lowering, so we ignore it over here as well.
+
+            var receiver = node.ReceiverOpt != null ? Visit(node.ReceiverOpt) : _bound.Null(ExpressionType);
+            var argument = Visit(node.Argument);
+            var op = node.IsAddition ? "EventAddAssign" : "EventSubtractAssign";
+
+            var accessorMethod = node.IsAddition ? node.Event.GetOwnOrInheritedAddMethod() : node.Event.GetOwnOrInheritedRemoveMethod();
+
+            return CSharpExprFactory(op, receiver, _bound.MethodInfo(accessorMethod), argument);
+        }
+
         private BoundExpression VisitSequencePoint(BoundSequencePoint node)
         {
             // REVIEW: Nullability.

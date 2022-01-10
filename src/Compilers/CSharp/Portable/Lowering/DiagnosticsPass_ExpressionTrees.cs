@@ -293,9 +293,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitEventAssignmentOperator(BoundEventAssignmentOperator node)
         {
-            if (_inExpressionLambda)
+            // NB: We may not have WindowsRuntimeMarshal available in the C# expression library, so we dodge WinRT for now and only support "classic" .NET events.
+            if (_inExpressionLambda && (!HasCSharpExpression || node.Event.IsWindowsRuntimeEvent))
             {
-                // TODO: Can we support this?
                 Error(ErrorCode.ERR_ExpressionTreeContainsAssignment, node);
             }
 

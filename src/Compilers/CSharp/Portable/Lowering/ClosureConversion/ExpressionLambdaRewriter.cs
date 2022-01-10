@@ -373,6 +373,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitCompoundAssignmentOperator((BoundCompoundAssignmentOperator)node);
                 case BoundKind.IncrementOperator:
                     return VisitIncrementOperator((BoundIncrementOperator)node);
+                case BoundKind.EventAssignmentOperator:
+                    return VisitEventAssignmentOperator((BoundEventAssignmentOperator)node);
 
                 case BoundKind.SequencePointExpression:
                     return Visit(((BoundSequencePointExpression)node).Expression);
