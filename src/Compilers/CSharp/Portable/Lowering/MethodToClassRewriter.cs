@@ -254,9 +254,9 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         public override BoundNode VisitBinaryOperator(BoundBinaryOperator node)
         {
             // Local rewriter should have already rewritten interpolated strings into their final form of calls and gotos
-            Debug.Assert(node.InterpolatedStringHandlerData is null);
+            // Debug.Assert(node.InterpolatedStringHandlerData is null); // REVIEW: This can now happen in expression trees (see below).
 
-            return node.Update(
+            var res = node.Update(
                 node.OperatorKind,
                 node.ConstantValue,
                 VisitMethodSymbol(node.Method),
@@ -265,6 +265,13 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                 (BoundExpression)Visit(node.Left),
                 (BoundExpression)Visit(node.Right),
                 VisitType(node.Type));
+
+            if (node.InterpolatedStringHandlerData is { } data)
+            {
+                res = res.Update(BoundBinaryOperator.UncommonData.InterpolatedStringHandlerAddition(data));
+            }
+
+            return res;
         }
 
         public override BoundNode VisitUnaryOperator(BoundUnaryOperator node)

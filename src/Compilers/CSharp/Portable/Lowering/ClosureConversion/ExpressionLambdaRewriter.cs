@@ -20,8 +20,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly TypeCompilationState _compilationState;
         private readonly SyntheticBoundNodeFactory _bound;
         private readonly TypeMap _typeMap;
-        private readonly Dictionary<ParameterSymbol, BoundExpression> _parameterMap = new Dictionary<ParameterSymbol, BoundExpression>();
-        private readonly Dictionary<BoundAwaitableValuePlaceholder, BoundExpression> _awaitableValuePlaceholderMap = new Dictionary<BoundAwaitableValuePlaceholder, BoundExpression>();
+        private readonly Dictionary<ParameterSymbol, BoundExpression> _parameterMap = new();
+        private readonly Dictionary<BoundAwaitableValuePlaceholder, BoundExpression> _awaitableValuePlaceholderMap = new();
+        private readonly Dictionary<BoundDeconstructValuePlaceholder, BoundExpression> _deconstructValuePlaceholderMap = new();
+        private readonly Dictionary<BoundInterpolatedStringArgumentPlaceholder, BoundExpression> _interpolatedStringArgumentPlaceholderMap = new();
+        private readonly Dictionary<BoundInterpolatedStringHandlerPlaceholder, BoundExpression> _interpolatedStringHandlerPlaceholderMap = new();
+        private readonly Dictionary<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder, BoundExpression> _interpolatedStringHandlerAppendMethodArgumentPlaceholderMap = new();
         private readonly bool _ignoreAccessibility;
         private readonly Stack<LambdaCompilationInfo> _lambdas = new Stack<LambdaCompilationInfo>();
         private int _recursionDepth;
@@ -387,6 +391,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.InterpolatedString:
                     return VisitInterpolatedString((BoundInterpolatedString)node);
+                case BoundKind.InterpolatedStringArgumentPlaceholder:
+                    return VisitInterpolatedStringArgumentPlaceholder((BoundInterpolatedStringArgumentPlaceholder)node);
+                case BoundKind.InterpolatedStringHandlerPlaceholder:
+                    return VisitInterpolatedStringHandlerPlaceholder((BoundInterpolatedStringHandlerPlaceholder)node);
+                case BoundKind.InterpolatedStringHandlerAppendMethodArgumentPlaceholder:
+                    return VisitInterpolatedStringHandlerAppendMethodArgumentPlaceholder((BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder)node);
 
                 case BoundKind.FromEndIndexExpression:
                     return VisitFromEndIndex((BoundFromEndIndexExpression)node);
@@ -405,6 +415,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 case BoundKind.DeconstructionAssignmentOperator:
                     return VisitDeconstructionAssignmentOperator((BoundDeconstructionAssignmentOperator)node);
+                case BoundKind.DeconstructValuePlaceholder:
+                    return VisitDeconstructValuePlaceholder((BoundDeconstructValuePlaceholder)node);
 
                 case BoundKind.WithExpression:
                     return VisitWithExpression((BoundWithExpression)node);
@@ -634,23 +646,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression MakeGetAwaiterLambda(BoundAwaitableInfo info)
         {
-            var awaitableType = info.AwaitableInstancePlaceholder.Type;
-            string parameterName = "p";
-            ParameterSymbol lambdaParameter = _bound.SynthesizedParameter(awaitableType, parameterName);
-            var param = _bound.SynthesizedLocal(ParameterExpressionType);
-            var parameterReference = _bound.Local(param);
-            var parameter = ExprFactory("Parameter", _bound.Typeof(awaitableType), _bound.Literal(parameterName));
+            var builder = GetLambdaExpressionBuilder(parameterCount: 1);
+
+            var parameterReference = builder.AddParameter(info.AwaitableInstancePlaceholder.Type, "p");
+
             _awaitableValuePlaceholderMap[info.AwaitableInstancePlaceholder] = parameterReference;
+
             var getAwaiter = Visit(info.GetAwaiter);
+            
             _awaitableValuePlaceholderMap.Remove(info.AwaitableInstancePlaceholder);
-            var result = _bound.Sequence(
-                ImmutableArray.Create(param),
-                ImmutableArray.Create<BoundExpression>(_bound.AssignmentExpression(parameterReference, parameter)),
-                ExprFactory(
-                    "Lambda",
-                    getAwaiter,
-                    _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(parameterReference))));
-            return result;
+            
+            return builder.Build(getAwaiter);
         }
 
         private BoundExpression VisitBaseReference(BoundBaseReference node)
@@ -709,6 +715,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                 right = _bound.Default(left.Type);
             }
 
+            // With the introduction of interpolated string handlers, we need to support string concat of interpolated strings
+            // in order to represent the binary operators below the top-level interpolated string handler conversion.
+
+            if (opKind == BinaryOperatorKind.StringConcatenation && methodOpt is null)
+            {
+                methodOpt = (MethodSymbol)_bound.SpecialMember(SpecialMember.System_String__ConcatStringString);
+            }
 
             // Enums are handled as per their promoted underlying type
             switch (opKind.OperandTypes())
@@ -850,7 +863,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (node.IsDelegateCall)
             {
-                if (HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Method, node.Arguments))
+                if (HasNamedOrOptionalParametersOrInterpolatedStringHandlerConversion(node.ArgumentNamesOpt, node.Method, node.Arguments))
                 {
                     var method = node.Method;
                     return CSharpExprFactory(
@@ -874,7 +887,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     }
                 }
             }
-            else if (HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Method, node.Arguments))
+            else if (HasNamedOrOptionalParametersOrInterpolatedStringHandlerConversion(node.ArgumentNamesOpt, node.Method, node.Arguments))
             {
                 var method = node.Method;
                 return CSharpExprFactory(
@@ -904,10 +917,23 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private static bool HasNamedOrOptionalParameters(ImmutableArray<string> argumentNamesOpt, MethodSymbol method, ImmutableArray<BoundExpression> arguments)
+        private static bool HasNamedOrOptionalParametersOrInterpolatedStringHandlerConversion(ImmutableArray<string> argumentNamesOpt, MethodSymbol method, ImmutableArray<BoundExpression> arguments)
         {
             // Checks whether we have any named arguments or missing arguments.
-            return !argumentNamesOpt.IsDefaultOrEmpty || method.ParameterCount != arguments.Length;
+            if (!argumentNamesOpt.IsDefaultOrEmpty || method.ParameterCount != arguments.Length)
+            {
+                return true;
+            }
+
+            foreach (var argument in arguments)
+            {
+                if (argument is BoundConversion { ConversionKind: ConversionKind.InterpolatedStringHandler })
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool HasByRefArrayAccessUsingSystemIndexParameters(MethodSymbol method, ImmutableArray<BoundExpression> arguments)
@@ -1082,6 +1108,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return Convert(Constant(_bound.Null(_objectType)), _objectType, node.Type, false, node.ExplicitCastInCode);
                 case ConversionKind.InterpolatedString:
                     return VisitInterpolatedString((BoundInterpolatedString)node.Operand, node.Type);
+                case ConversionKind.InterpolatedStringHandler:
+                    return VisitInterpolatedStringHandlerConversion(node);
                 case ConversionKind.ImplicitTupleLiteral:
                 case ConversionKind.ExplicitTupleLiteral:
                     throw ExceptionUtilities.UnexpectedValue(node.ConversionKind); // REVIEW: LocalRewriter turns this into identity. Should we preserve it in expession trees?
@@ -1460,9 +1488,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 locals.Add(param);
                 var parameterReference = _bound.Local(param);
                 parameters.Add(parameterReference);
-                var parameter = ExprFactory(
-                    "Parameter",
-                    _bound.Typeof(_typeMap.SubstituteType(p.Type).Type), _bound.Literal(p.Name));
+                var parameter = MakeParameterExpression(_typeMap.SubstituteType(p.Type).Type, p.Name);
                 initializers.Add(_bound.AssignmentExpression(parameterReference, parameter));
                 _parameterMap[p] = parameterReference;
             }
@@ -1530,22 +1556,19 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression MakeConversionLambda(TypeSymbol fromType, TypeSymbol toType, Func<BoundParameter, BoundExpression> makeConversion)
         {
+            var builder = GetLambdaExpressionBuilder(parameterCount: 1);
+
             string parameterName = "p";
             ParameterSymbol lambdaParameter = _bound.SynthesizedParameter(fromType, parameterName);
-            var param = _bound.SynthesizedLocal(ParameterExpressionType);
-            var parameterReference = _bound.Local(param);
-            var parameter = ExprFactory("Parameter", _bound.Typeof(fromType), _bound.Literal(parameterName));
+            var parameterReference = builder.AddParameter(fromType, parameterName);
+
             _parameterMap[lambdaParameter] = parameterReference;
+
             var convertedValue = Visit(makeConversion(_bound.Parameter(lambdaParameter)));
+
             _parameterMap.Remove(lambdaParameter);
-            var result = _bound.Sequence(
-                ImmutableArray.Create(param),
-                ImmutableArray.Create<BoundExpression>(_bound.AssignmentExpression(parameterReference, parameter)),
-                ExprFactory(
-                    "Lambda",
-                    convertedValue,
-                    _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(parameterReference))));
-            return result;
+
+            return builder.Build(convertedValue);
         }
 
         private BoundExpression MakeConversionLambda(Conversion conversion, TypeSymbol fromType, TypeSymbol toType)
@@ -1740,7 +1763,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return Constant(node);
             }
 
-            var hasNamedOrOptionalParameters = HasNamedOrOptionalParameters(node.ArgumentNamesOpt, node.Constructor, node.Arguments);
+            var hasNamedOrOptionalParameters = HasNamedOrOptionalParametersOrInterpolatedStringHandlerConversion(node.ArgumentNamesOpt, node.Constructor, node.Arguments);
 
             if (!hasNamedOrOptionalParameters)
             {
@@ -2038,12 +2061,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             var nullableInt32Type = _nullableType.Construct(_int32Type);
 
             var parts = node.Parts;
+            var quotedParts = node.InterpolationData?.QuotedPositionInfo?[0]; // REVIEW: Nested situations with + involved.
             var n = parts.Length;
             var expressions = new BoundExpression[n];
 
             for (int i = 0; i < n; i++)
             {
-                var part = parts[i];
+                // NB: In case of interpolated string handlers, the conversion node higher up will overlay the calls to perform the appends.
+                var part = quotedParts is { } q ? q[i].Part : parts[i];
 
                 var fillin = part as BoundStringInsert;
                 if (fillin == null)
@@ -2091,6 +2116,238 @@ namespace Microsoft.CodeAnalysis.CSharp
             var interpolations = _bound.ArrayOrEmpty(CSharp_Expressions_InterpolationType, expressions);
 
             return CSharpExprFactory("InterpolatedString", _bound.Typeof(type), interpolations);
+        }
+
+        private BoundExpression VisitInterpolatedStringHandlerConversion(BoundConversion node)
+        {
+            var data = node.Operand.GetInterpolatedStringHandlerData();
+            var info = makeStringHandlerInfo(node.Operand);
+            var operand = Visit(node.Operand);
+
+            return CSharpExprFactory("InterpolatedStringHandlerConvert", info, operand);
+
+            static ImmutableArray<BoundExpression> getParts(BoundExpression expr)
+            {
+                if (expr is BoundInterpolatedString s)
+                {
+                    return s.Parts;
+                }
+                else if (expr is BoundBinaryOperator b)
+                {
+                    // NB: Same as CollectBinaryOperatorInterpolatedStringParts in LocalRewriter. Can be refactored.
+                    var partsBuilder = ArrayBuilder<BoundExpression>.GetInstance();
+                    b.VisitBinaryOperatorInterpolatedString(partsBuilder,
+                        static (BoundInterpolatedString interpolatedString, ArrayBuilder<BoundExpression> partsBuilder) =>
+                        {
+                            partsBuilder.AddRange(interpolatedString.Parts);
+                            return true;
+                        });
+                    return partsBuilder.ToImmutableAndFree();
+                }
+                else
+                {
+                    throw ExceptionUtilities.Unreachable;
+                }
+            }
+
+            BoundExpression makeStringHandlerInfo(BoundExpression expr)
+            {
+                Debug.Assert(data.BuilderType.Equals(node.Type, TypeCompareKind.ConsiderEverything));
+
+                var (constructionLambda, literalLength, formattedCount, argsIndices) = makeConstructionLambda(data);
+                var receiver = data.ReceiverPlaceholder;
+                var parts = getParts(expr);
+
+                var appendLambdas = ImmutableArray.CreateBuilder<BoundExpression>();
+            
+                var i = 0;
+
+                foreach (var quotedString in data.QuotedPositionInfo)
+                {
+                    foreach (var quotedPartInfo in quotedString)
+                    {
+                        var append = parts[i++];
+                        var original = quotedPartInfo;
+                        var appendLambda = makeAppendLambda(receiver, append, original.Part, original.Placeholders);
+                        appendLambdas.Add(appendLambda);
+                    }
+                }
+
+                var appendLambdaArray = _bound.ArrayOrEmpty(LambdaExpressionType, appendLambdas.ToImmutable());
+
+                // REVIEW: Wire these as informational (though all info is computable at runtime as well)?
+                _ = literalLength;
+                _ = formattedCount;
+
+                return CSharpExprFactory("InterpolatedStringHandlerInfo", _bound.Typeof(data.BuilderType), constructionLambda, argsIndices, appendLambdaArray);
+            }
+
+            (BoundExpression lambda, int literalLength, int formattedCount, BoundExpression argumentIndices) makeConstructionLambda(InterpolatedStringHandlerData data)
+            {
+                Debug.Assert(data.Construction is BoundObjectCreationExpression); // See BindUnconvertedInterpolatedPartsToHandlerType.
+                var c = (BoundObjectCreationExpression)data.Construction;
+                Debug.Assert(c.Arguments.Length >= 2);
+
+                int localsCount = data.ArgumentPlaceholders.Length;
+
+                var builder = GetLambdaExpressionBuilder(localsCount + 2);
+
+                (int, BoundLocal, BoundInterpolatedStringArgumentPlaceholder) extractConstantArgument(int index, string name)
+                {
+                    Debug.Assert(c.Arguments[index] is BoundLiteral { Type: { SpecialType: SpecialType.System_Int32 } });
+                    var literal = (BoundLiteral)c.Arguments[index];
+                    var paramExpr = builder.AddParameter(literal.Type, name);
+                    var placeholder = new BoundInterpolatedStringArgumentPlaceholder(literal.Syntax, -1, 0, literal.Type);
+                    return (literal.ConstantValue.Int32Value, paramExpr, placeholder);
+                }
+
+                var (literalLength, literalLengthParamExpr, literalLengthPlaceholder) = extractConstantArgument(0, "literalLength");
+                _interpolatedStringArgumentPlaceholderMap[literalLengthPlaceholder] = literalLengthParamExpr;
+
+                var (formattedCount, formattedCountParamExpr, formattedCountPlaceholder) = extractConstantArgument(1, "formattedCount");
+                _interpolatedStringArgumentPlaceholderMap[formattedCountPlaceholder] = formattedCountParamExpr;
+
+                var newArguments = ImmutableArray.CreateBuilder<BoundExpression>(c.Arguments.Length);
+
+                newArguments.Add(literalLengthPlaceholder);
+                newArguments.Add(formattedCountPlaceholder);
+
+                for (int i = 2; i < c.Arguments.Length; i++)
+                {
+                    newArguments.Add(c.Arguments[i]);
+                }
+
+                c = c.UpdateArgumentsAndInitializer(newArguments.ToImmutable(), c.ArgumentRefKindsOpt, c.InitializerExpressionOpt, changeTypeOpt: null, keepArgInfo: true);
+
+                var argumentIndices = ImmutableArray.CreateBuilder<BoundExpression>(localsCount);
+
+                for (int i = 0; i < localsCount; i++)
+                {
+                    var argumentPlaceholder = data.ArgumentPlaceholders[i];
+
+                    var name = argumentPlaceholder.ArgumentIndex switch
+                    {
+                        BoundInterpolatedStringArgumentPlaceholder.TrailingConstructorValidityParameter => "appendShouldProceed",
+                        BoundInterpolatedStringArgumentPlaceholder.InstanceParameter => "this",
+                        var idx => "arg" + idx
+                    };
+                    
+                    var refKind = RefKind.None;
+                    var type = argumentPlaceholder.Type;
+
+                    if (argumentPlaceholder.ArgumentIndex == BoundInterpolatedStringArgumentPlaceholder.TrailingConstructorValidityParameter)
+                    {
+                        refKind = RefKind.Out;
+                    }
+                    else
+                    {
+                        refKind = argumentPlaceholder.GetRefKind();
+                        argumentIndices.Add(_bound.Literal(argumentPlaceholder.ArgumentIndex));
+                    }
+
+                    var paramExpr = builder.AddParameter(type, name, makeByRef: refKind != RefKind.None);
+
+                    _interpolatedStringArgumentPlaceholderMap[argumentPlaceholder] = paramExpr;
+                }
+
+                var body = Visit(c);
+
+                for (int i = localsCount - 1; i >= 0; i--)
+                {
+                    var argumentPlaceholder = data.ArgumentPlaceholders[i];
+                    _interpolatedStringArgumentPlaceholderMap.Remove(argumentPlaceholder);
+                }
+                
+                _interpolatedStringArgumentPlaceholderMap.Remove(formattedCountPlaceholder);
+                _interpolatedStringArgumentPlaceholderMap.Remove(literalLengthPlaceholder);
+
+                var constructionLambda = builder.Build(body, t => CSharpExprFactory("InterpolatedStringHandlerConstructionLambda", t.body, t.parameters));
+
+                var argumentIndicesArray = _bound.ArrayOrEmpty(_int32Type, argumentIndices.ToImmutable());
+
+                return (constructionLambda, literalLength, formattedCount, argumentIndicesArray);
+            }
+        
+            BoundExpression makeAppendLambda(BoundInterpolatedStringHandlerPlaceholder receiver, BoundExpression partAppend, BoundExpression partOriginal, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> placeholders)
+            {
+                var builder = GetLambdaExpressionBuilder();
+                var placeholderKeys = new List<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder>();
+
+                void addArgument(BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder placeholder, string name)
+                {
+                    var parameter = builder.AddParameter(placeholder.Type, name);
+                    _interpolatedStringHandlerAppendMethodArgumentPlaceholderMap[placeholder] = parameter;
+                    placeholderKeys.Add(placeholder);
+                }
+
+                var receiverExpr = builder.AddParameter(receiver.Type, "handler", makeByRef: true);
+                _interpolatedStringHandlerPlaceholderMap[receiver] = receiverExpr;
+
+                var isLiteral = false;
+
+                if (partOriginal is BoundLiteral literal)
+                {
+                    Debug.Assert(placeholders.Length == 1);
+                    addArgument(placeholders[0], "value");
+
+                    isLiteral = true;
+                }
+                else
+                {
+                    Debug.Assert(partOriginal is BoundStringInsert);
+                    var insert = (BoundStringInsert)partOriginal;
+
+                    // NB: The order of value, alignment, format for the placeholders matches the logic in BindInterpolatedStringAppendCalls.
+
+                    var i = 0;
+
+                    Debug.Assert(placeholders.Length > i);
+                    addArgument(placeholders[i++], "value");
+
+                    if (insert.Alignment is not null)
+                    {
+                        Debug.Assert(placeholders.Length > i);
+                        addArgument(placeholders[i++], "alignment");
+                    }
+
+                    if (insert.Format is not null)
+                    {
+                        Debug.Assert(placeholders.Length > i);
+                        addArgument(placeholders[i++], "format");
+                    }
+
+                    Debug.Assert(placeholders.Length == i);
+                }
+
+
+                var body = Visit(partAppend);
+                
+                foreach (var placeholder in placeholderKeys)
+                {
+                    _interpolatedStringHandlerAppendMethodArgumentPlaceholderMap.Remove(placeholder);
+                }
+
+                _interpolatedStringHandlerPlaceholderMap.Remove(receiver);
+
+                var boolReturnsExpr = _bound.Literal(data.UsesBoolReturns);
+
+                return builder.Build(body, t => CSharpExprFactory(isLiteral ? "InterpolatedStringHandlerAppendLiteralLambda" : "InterpolatedStringHandlerAppendFormattedLambda", boolReturnsExpr, t.body, t.parameters));
+            }
+        }
+
+        private BoundExpression VisitInterpolatedStringArgumentPlaceholder(BoundInterpolatedStringArgumentPlaceholder node)
+        {
+            return _interpolatedStringArgumentPlaceholderMap[node];
+        }
+
+        private BoundExpression VisitInterpolatedStringHandlerPlaceholder(BoundInterpolatedStringHandlerPlaceholder node)
+        {
+            return _interpolatedStringHandlerPlaceholderMap[node];
+        }
+
+        private BoundExpression VisitInterpolatedStringHandlerAppendMethodArgumentPlaceholder(BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder node)
+        {
+            return _interpolatedStringHandlerAppendMethodArgumentPlaceholderMap[node];
         }
 
         private BoundExpression VisitFromEndIndex(BoundFromEndIndexExpression node)
@@ -2199,12 +2456,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 for (int i = 0, n = info.Operators.Length; i < n; i++)
                 {
+                    var lambdaBuilder = GetLambdaExpressionBuilder();
+
                     var operatorInfo = info.Operators[i];
                     var leftElementType = operatorInfo.LeftConvertedTypeOpt;
                     var rightElementType = operatorInfo.RightConvertedTypeOpt;
 
-                    var (leftParameterSymbol, leftParameter, leftParameterExpressionLocalSymbol, leftParameterExpressionLocal, leftAssignParameterExpression) = pushParameter(leftElementType, "left");
-                    var (rightParameterSymbol, rightParameter, rightParameterExpressionLocalSymbol, rightParameterExpressionLocal, rightAssignParameterExpression) = pushParameter(rightElementType, "right");
+                    var (leftParameterSymbol, leftParameter) = pushParameter(leftElementType, "left");
+                    var (rightParameterSymbol, rightParameter) = pushParameter(rightElementType, "right");
 
                     var expr = operatorInfo.InfoKind switch
                     {
@@ -2219,40 +2478,27 @@ namespace Microsoft.CodeAnalysis.CSharp
                     popParameter(rightParameterSymbol);
                     popParameter(leftParameterSymbol);
 
-                    var result = _bound.Sequence(
-                            ImmutableArray.Create(leftParameterExpressionLocalSymbol, rightParameterExpressionLocalSymbol),
-                            ImmutableArray.Create<BoundExpression>(
-                                leftAssignParameterExpression,
-                                rightAssignParameterExpression
-                            ),
-                            ExprFactory(
-                                "Lambda",
-                                bodyExpr,
-                                _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(leftParameterExpressionLocal, rightParameterExpressionLocal))));
-
+                    var result = lambdaBuilder.Build(bodyExpr);
                     builder.Add(result);
+
+                    (ParameterSymbol parameterSymbol, BoundParameter parameter) pushParameter(TypeSymbol type, string name)
+                    {
+                        var parameterSymbol = _bound.SynthesizedParameter(type, name);
+                        var parameterParameter = _bound.Parameter(parameterSymbol);
+                        var parameterExpression = lambdaBuilder.AddParameter(type, name);
+
+                        _parameterMap[parameterSymbol] = parameterExpression;
+
+                        return (parameterSymbol, parameterParameter);
+                    }
+
+                    void popParameter(ParameterSymbol lambdaParameter)
+                    {
+                        _parameterMap.Remove(lambdaParameter);
+                    }
                 }
 
                 return _bound.Array(LambdaExpressionType, builder.ToImmutableAndFree());
-
-                (ParameterSymbol parameterSymbol, BoundParameter parameter, LocalSymbol parameterExpressionLocalSymbol, BoundLocal parameterExpressionLocal, BoundAssignmentOperator assignParameterExpression) pushParameter(TypeSymbol type, string name)
-                {
-                    var parameterSymbol = _bound.SynthesizedParameter(type, name);
-                    var parameterParameter = _bound.Parameter(parameterSymbol);
-                    var parameterExpressionLocalSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                    var parameterExpressionLocal = _bound.Local(parameterExpressionLocalSymbol);
-                    var parameterExpressionValue = ExprFactory("Parameter", _bound.Typeof(type), _bound.Literal(name));
-                    var assignParameterExpression = _bound.AssignmentExpression(parameterExpressionLocal, parameterExpressionValue);
-
-                    _parameterMap[parameterSymbol] = parameterExpressionLocal;
-
-                    return (parameterSymbol, parameterParameter, parameterExpressionLocalSymbol, parameterExpressionLocal, assignParameterExpression);
-                }
-
-                void popParameter(ParameterSymbol lambdaParameter)
-                {
-                    _parameterMap.Remove(lambdaParameter);
-                }
 
                 BoundExpression getElementEqualityCheckSingle(TupleBinaryOperatorInfo.Single operatorInfo, BoundParameter leftParameter, BoundParameter rightParameter)
                 {
@@ -2427,89 +2673,37 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 BoundExpression makeDeconstructLambda(DeconstructMethodInfo info)
                 {
-                    var replacements = new Dictionary<BoundDeconstructValuePlaceholder, BoundExpression>();
-                    var locals = ImmutableArray.CreateBuilder<LocalSymbol>(1 + info.OutputPlaceholders.Length);
-                    var lambdaParams = ImmutableArray.CreateBuilder<BoundExpression>(1 + info.OutputPlaceholders.Length);
-                    var assignments = ImmutableArray.CreateBuilder<BoundExpression>(1 + info.OutputPlaceholders.Length);
-                    var parameterMapKeys = new List<ParameterSymbol>(1 + info.OutputPlaceholders.Length);
+                    var outputCount = info.OutputPlaceholders.Length;
+                    var builder = GetLambdaExpressionBuilder(outputCount + 1);
 
-                    var inputParameterSymbol = _bound.SynthesizedParameter(info.InputPlaceholder.Type, "i");
-                    var inputParameter = _bound.Parameter(inputParameterSymbol);
-                    replacements.Add(info.InputPlaceholder, inputParameter);
+                    var inputParam = builder.AddParameter(info.InputPlaceholder.Type, "i");
+                    _deconstructValuePlaceholderMap[info.InputPlaceholder] = inputParam;
 
-                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                    locals.Add(inputParamExprSymbol);
-
-                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
-                    lambdaParams.Add(inputParamExpr);
-
-                    _parameterMap.Add(inputParameterSymbol, inputParamExpr);
-                    parameterMapKeys.Add(inputParameterSymbol);
-
-                    var inputParam = ExprFactory("Parameter", _bound.Typeof(info.InputPlaceholder.Type), _bound.Literal("i"));
-                    assignments.Add(_bound.AssignmentExpression(inputParamExpr, inputParam));
-
-                    for (int i = 0, n = info.OutputPlaceholders.Length; i < n; i++)
+                    for (int i = 0; i < outputCount; i++)
                     {
                         var outputPlaceholder = info.OutputPlaceholders[i];
-                        var name = "o" + i;
+                        var param = builder.AddParameter(outputPlaceholder.Type, "o" + i, makeByRef: true);
 
-                        var outputParameterSymbol = _bound.SynthesizedParameter(outputPlaceholder.Type, name, refKind: RefKind.Out);
-                        var outputParameter = _bound.Parameter(outputParameterSymbol);
-                        replacements.Add(outputPlaceholder, outputParameter);
-
-                        var outputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                        locals.Add(outputParamExprSymbol);
-
-                        var outputParamExpr = _bound.Local(outputParamExprSymbol);
-                        lambdaParams.Add(outputParamExpr);
-
-                        _parameterMap.Add(outputParameterSymbol, outputParamExpr);
-                        parameterMapKeys.Add(outputParameterSymbol);
-
-                        var outputParam = ExprFactory("Parameter", _bound.InstanceCall(_bound.Typeof(outputPlaceholder.Type), "MakeByRefType"), _bound.Literal(name));
-                        assignments.Add(_bound.AssignmentExpression(outputParamExpr, outputParam));
+                        _deconstructValuePlaceholderMap[outputPlaceholder] = param;
                     }
 
-                    var rewrittenInvocation = (BoundExpression)new DeconstructValuePlaceholderSubstitutor(replacements).Visit(info.Invocation);
-                    var body = Visit(rewrittenInvocation);
+                    var body = Visit(info.Invocation);
 
-                    foreach (var parameterMapKey in parameterMapKeys)
+                    for (int i = outputCount - 1; i >= 0; i--)
                     {
-                        _parameterMap.Remove(parameterMapKey);
+                        _deconstructValuePlaceholderMap.Remove(info.OutputPlaceholders[i]);
                     }
 
-                    var result = _bound.Sequence(
-                        locals.ToImmutable(),
-                        assignments.ToImmutable(),
-                        CSharpExprFactory(
-                            "DeconstructLambda",
-                            body,
-                            _bound.ArrayOrEmpty(ParameterExpressionType, lambdaParams.ToImmutable())));
+                    _deconstructValuePlaceholderMap.Remove(info.InputPlaceholder);
 
-                    return result;
+                    return builder.Build(body, t => CSharpExprFactory("DeconstructLambda", t.body, t.parameters));
                 }
             }
         }
 
-        private sealed class DeconstructValuePlaceholderSubstitutor : BoundTreeRewriterWithStackGuard
+        private BoundExpression VisitDeconstructValuePlaceholder(BoundDeconstructValuePlaceholder node)
         {
-            private readonly Dictionary<BoundDeconstructValuePlaceholder, BoundExpression> _replacements;
-
-            public DeconstructValuePlaceholderSubstitutor(Dictionary<BoundDeconstructValuePlaceholder, BoundExpression> replacements)
-            {
-                _replacements = replacements;
-            }
-
-            public override BoundNode VisitDeconstructValuePlaceholder(BoundDeconstructValuePlaceholder node)
-            {
-                if (_replacements.TryGetValue(node, out var res))
-                {
-                    return res;
-                }
-                
-                return node;
-            }
+            return _deconstructValuePlaceholderMap[node];
         }
 
         private BoundExpression VisitIsPatternExpression(BoundIsPatternExpression node)
@@ -2546,9 +2740,78 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             PopLocals(node.Locals);
 
-            var variables = _bound.Array(ParameterExpressionType, locals.ToImmutableAndFree());
+            var variables = MakeParameterExpressionsArray(locals.ToImmutableAndFree());
 
             return CSharpExprFactory("SwitchExpressionArm", variables, pattern, whenClause, value);
+        }
+
+        private BoundExpression MakeParameterExpression(TypeSymbol type, string name, bool makeByRef = false)
+        {
+            var typeExpr = _bound.Typeof(type);
+            
+            if (makeByRef)
+            {
+                typeExpr = _bound.InstanceCall(typeExpr, "MakeByRefType");
+            }
+
+            return ExprFactory("Parameter", typeExpr, _bound.Literal(name));
+        }
+
+        private BoundExpression MakeParameterExpressionsArray(ImmutableArray<BoundExpression> parameters)
+        {
+            return _bound.ArrayOrEmpty(ParameterExpressionType, parameters);
+        }
+
+        private SyntheticLambdaExpressionBuilder GetLambdaExpressionBuilder(int parameterCount = 0) => new SyntheticLambdaExpressionBuilder(this, parameterCount);
+
+        struct SyntheticLambdaExpressionBuilder
+        {
+            private readonly ExpressionLambdaRewriter _parent;
+            private readonly ArrayBuilder<LocalSymbol> _locals;
+            private readonly ArrayBuilder<BoundExpression> _assignments;
+            private readonly ArrayBuilder<BoundExpression> _parameters;
+
+            public SyntheticLambdaExpressionBuilder(ExpressionLambdaRewriter parent, int parameterCount)
+            {
+                _parent = parent;
+                _locals = ArrayBuilder<LocalSymbol>.GetInstance(parameterCount);
+                _assignments = ArrayBuilder<BoundExpression>.GetInstance(parameterCount);
+                _parameters = ArrayBuilder<BoundExpression>.GetInstance(parameterCount);
+            }
+
+            public BoundLocal AddParameter(TypeSymbol type, string name, bool makeByRef = false)
+            {
+                var param = _parent._bound.SynthesizedLocal(_parent.ParameterExpressionType);
+                var parameterReference = _parent._bound.Local(param);
+                var parameter = _parent.MakeParameterExpression(type, name, makeByRef);
+
+                _locals.Add(param);
+                _parameters.Add(parameterReference);
+                _assignments.Add(_parent._bound.AssignmentExpression(parameterReference, parameter));
+
+                return parameterReference;
+            }
+            
+            public BoundExpression Build(BoundExpression body)
+            {
+                return _parent._bound.Sequence(
+                    _locals.ToImmutableAndFree(),
+                    _assignments.ToImmutableAndFree(),
+                    _parent.ExprFactory(
+                        "Lambda",
+                        body,
+                        _parent.MakeParameterExpressionsArray(_parameters.ToImmutableAndFree())));
+            }
+
+            public BoundExpression Build(BoundExpression body, Func<(BoundExpression body, BoundExpression parameters), BoundExpression> factory)
+            {
+                return _parent._bound.Sequence(
+                    _locals.ToImmutableAndFree(),
+                    _assignments.ToImmutableAndFree(),
+                    factory(
+                        (body: body,
+                         parameters: _parent.MakeParameterExpressionsArray(_parameters.ToImmutableAndFree()))));
+            }
         }
     }
 }

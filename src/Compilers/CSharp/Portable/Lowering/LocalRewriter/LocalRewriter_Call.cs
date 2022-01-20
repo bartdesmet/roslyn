@@ -485,10 +485,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var argument = arguments[argumentIndex];
 
-                if (argument is BoundConversion { ConversionKind: ConversionKind.InterpolatedStringHandler, Operand: BoundInterpolatedString or BoundBinaryOperator } conversion)
+                // NB: In expression lambdas, we don't do the rewrite.
+                if (!_inExpressionLambda && argument is BoundConversion { ConversionKind: ConversionKind.InterpolatedStringHandler, Operand: BoundInterpolatedString or BoundBinaryOperator } conversion)
                 {
-                    // Handler conversions are not supported in expression lambdas.
-                    Debug.Assert(!_inExpressionLambda);
                     var interpolationData = conversion.Operand.GetInterpolatedStringHandlerData();
                     var creation = (BoundObjectCreationExpression)interpolationData.Construction;
 

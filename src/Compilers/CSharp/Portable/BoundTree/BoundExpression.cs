@@ -142,6 +142,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         public sealed override bool IsEquivalentToThisReference => false;
     }
 
+    internal partial class BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder
+    {
+        public sealed override bool IsEquivalentToThisReference => false;
+    }
+
     internal partial class BoundDeconstructValuePlaceholder
     {
         public sealed override bool IsEquivalentToThisReference => false; // Preserving old behavior

@@ -24,6 +24,19 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case ConversionKind.InterpolatedStringHandler:
                     Debug.Assert(node.Type is NamedTypeSymbol { IsInterpolatedStringHandlerType: true });
 
+                    if (_inExpressionLambda)
+                    {
+                        // Narrow case of e.g. $"foo" which we want to retain in expression trees such that ExpressionLambdaRewriter
+                        // does not encounter a BoundLiteral (due to LocalRewriter rewriting constants in VisitExpressionImpl) and
+                        // misses out on the single Append call for the handler conversion.
+                        if (HasCSharpExpression && node.Operand is BoundInterpolatedString s && s.ConstantValue != null)
+                        {
+                            return node;
+                        }
+
+                        break;
+                    }
+                    
                     var (data, parts) = node.Operand switch
                     {
                         BoundInterpolatedString { InterpolationData: { } d, Parts: { } p } => (d, p),

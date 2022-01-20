@@ -108,13 +108,56 @@ namespace Microsoft.CodeAnalysis.CSharp
                 type: type);
         }
 
+        private BoundExpression VisitInterpolatedStringConcatForExpressionTree(BoundBinaryOperator node)
+        {
+            Debug.Assert(node.InterpolatedStringHandlerData is { } d && d.QuotedPositionInfo != null);
+            
+            var data = node.InterpolatedStringHandlerData.Value;
+
+            var res = (BoundBinaryOperator)node.RewriteInterpolatedStringAddition<BoundInterpolatedString, InterpolatedStringHandlerData, BoundExpression>(data, visitInterpolatedString, visitBinaryOperator);
+
+            return res.Update(BoundBinaryOperator.UncommonData.InterpolatedStringHandlerAddition(data));
+
+            BoundExpression visitInterpolatedString(BoundInterpolatedString s, int i, InterpolatedStringHandlerData data)
+            {
+                var positionInfo = data.PositionInfo[i];
+                var quotedInfo = data.QuotedPositionInfo!.Value[i];
+
+                // NB: ExpressionLambdaRewriter only cares about QuotedInfo.
+
+                var childData = new InterpolatedStringHandlerData(
+                    data.BuilderType,
+                    data.Construction,
+                    data.UsesBoolReturns,
+                    data.ScopeOfContainingExpression,
+                    data.ArgumentPlaceholders,
+                    ImmutableArray.Create(positionInfo),
+                    ImmutableArray.Create(quotedInfo),
+                    data.ReceiverPlaceholder);
+
+                return VisitInterpolatedStringForExpressionTree(s, childData);
+            }
+
+            BoundExpression visitBinaryOperator(BoundBinaryOperator o, BoundExpression left, BoundExpression right, InterpolatedStringHandlerData _)
+            {
+                return o.Update(o.OperatorKind, o.ConstantValue, o.Method, o.ConstrainedToType, o.ResultKind, left, right, o.Type);
+            }
+        }
+
         public BoundExpression VisitBinaryOperator(BoundBinaryOperator node, BoundUnaryOperator? applyParentUnaryOperator)
         {
             if (node.InterpolatedStringHandlerData is InterpolatedStringHandlerData data)
             {
-                Debug.Assert(node.Type.SpecialType == SpecialType.System_String, "Non-string binary addition should have been handled by VisitConversion or VisitArguments");
-                ImmutableArray<BoundExpression> parts = CollectBinaryOperatorInterpolatedStringParts(node);
-                return LowerPartsToString(data, parts, node.Syntax, node.Type);
+                if (!_inExpressionLambda)
+                {
+                    Debug.Assert(node.Type.SpecialType == SpecialType.System_String, "Non-string binary addition should have been handled by VisitConversion or VisitArguments");
+                    ImmutableArray<BoundExpression> parts = CollectBinaryOperatorInterpolatedStringParts(node);
+                    return LowerPartsToString(data, parts, node.Syntax, node.Type);
+                }
+                else if (HasCSharpExpression)
+                {
+                    return VisitInterpolatedStringConcatForExpressionTree(node);
+                }
             }
 
             if (node.OperatorKind is BinaryOperatorKind.Utf8Addition)
@@ -133,7 +176,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             for (BoundBinaryOperator? current = node; current != null && current.ConstantValue == null; current = current.Left as BoundBinaryOperator)
             {
                 // The regular visit mechanism will handle this.
-                if (current.InterpolatedStringHandlerData is not null || current.OperatorKind is BinaryOperatorKind.Utf8Addition)
+                if ((current.InterpolatedStringHandlerData is not null || current.OperatorKind is BinaryOperatorKind.Utf8Addition) && !_inExpressionLambda)
                 {
                     Debug.Assert(stack.Count >= 1);
                     break;

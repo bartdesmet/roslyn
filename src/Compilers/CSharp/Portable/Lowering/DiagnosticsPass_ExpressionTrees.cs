@@ -793,7 +793,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     break;
 
                 case ConversionKind.InterpolatedStringHandler:
-                    if (_inExpressionLambda)
+                    if (_inExpressionLambda && !HasCSharpExpression)
                     {
                         Error(ErrorCode.ERR_ExpressionTreeContainsInterpolatedStringHandlerConversion, node);
                     }

@@ -379,7 +379,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             return rewritten.Update(BoundBinaryOperator.UncommonData.InterpolatedStringHandlerAddition(data));
 
-            static BoundInterpolatedString createInterpolation(BoundUnconvertedInterpolatedString expression, int i, (ImmutableArray<ImmutableArray<BoundExpression>> AppendCalls, TypeSymbol _) arg)
+            BoundInterpolatedString createInterpolation(BoundUnconvertedInterpolatedString expression, int i, (ImmutableArray<ImmutableArray<BoundExpression>> AppendCalls, TypeSymbol _) arg)
             {
                 Debug.Assert(arg.AppendCalls.Length > i);
                 return new BoundInterpolatedString(
@@ -503,7 +503,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             // We satisfy the conditions for using an interpolated string builder. Bind all the builder calls unconditionally, so that if
             // there are errors we get better diagnostics than "could not convert to object."
             var implicitBuilderReceiver = new BoundInterpolatedStringHandlerPlaceholder(syntax, interpolatedStringHandlerType) { WasCompilerGenerated = true };
-            var (appendCallsArray, usesBoolReturn, positionInfo, baseStringLength, numFormatHoles) = BindInterpolatedStringAppendCalls(partsArray, implicitBuilderReceiver, diagnostics);
+            var (appendCallsArray, usesBoolReturn, positionInfo, quotedPositionInfo, baseStringLength, numFormatHoles) = BindInterpolatedStringAppendCalls(partsArray, implicitBuilderReceiver, diagnostics);
 
             // Prior to C# 10, all types in an interpolated string expression needed to be convertible to `object`. After 10, some types
             // (such as Span<T>) that are not convertible to `object` are permissible as interpolated string components, provided there
@@ -666,6 +666,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                                 LocalScopeDepth,
                                 additionalConstructorArguments.NullToEmpty(),
                                 positionInfo,
+                                quotedPositionInfo,
                                 implicitBuilderReceiver);
 
             return (appendCallsArray, interpolationData);
@@ -726,14 +727,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             return partsBuilder?.ToImmutableAndFree() ?? unconvertedInterpolatedString.Parts;
         }
 
-        private (ImmutableArray<ImmutableArray<BoundExpression>> AppendFormatCalls, bool UsesBoolReturn, ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>>, int BaseStringLength, int NumFormatHoles) BindInterpolatedStringAppendCalls(
+        private (ImmutableArray<ImmutableArray<BoundExpression>> AppendFormatCalls, bool UsesBoolReturn, ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>>, ImmutableArray<ImmutableArray<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>>?, int BaseStringLength, int NumFormatHoles) BindInterpolatedStringAppendCalls(
             ImmutableArray<ImmutableArray<BoundExpression>> partsArray,
             BoundInterpolatedStringHandlerPlaceholder implicitBuilderReceiver,
             BindingDiagnosticBag diagnostics)
         {
             if (partsArray.IsEmpty && partsArray.All(p => p.IsEmpty))
             {
-                return (ImmutableArray<ImmutableArray<BoundExpression>>.Empty, false, ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>>.Empty, 0, 0);
+                return (ImmutableArray<ImmutableArray<BoundExpression>>.Empty, false, ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>>.Empty, ImmutableArray<ImmutableArray<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>>.Empty, 0, 0);
             }
 
             bool? builderPatternExpectsBool = null;
@@ -747,6 +748,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             int baseStringLength = 0;
             int numFormatHoles = 0;
 
+            var quotedPositionInfoArray = InExpressionTree ? ArrayBuilder<ImmutableArray<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>>.GetInstance(partsArray.Length) : null;
+            var quotedPositionInfo = InExpressionTree ? ArrayBuilder<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>.GetInstance(firstPartsLength) : null;
+            var quotedPlaceholdersBuilder = InExpressionTree ? ArrayBuilder<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder>.GetInstance(3) : null;
+
             foreach (var parts in partsArray)
             {
                 foreach (var part in parts)
@@ -757,10 +762,24 @@ namespace Microsoft.CodeAnalysis.CSharp
                     bool hasAlignment;
                     bool hasFormat;
 
+                    void addArgument(BoundExpression expr)
+                    {
+                        if (InExpressionTree)
+                        {
+                            var p = new BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder(expr.Syntax, expr.Type) { WasCompilerGenerated = true };
+                            quotedPlaceholdersBuilder!.Add(p);
+                            argumentsBuilder!.Add(p);
+                        }
+                        else
+                        {
+                            argumentsBuilder!.Add(expr);
+                        }
+                    }
+
                     if (part is BoundStringInsert insert)
                     {
                         methodName = BoundInterpolatedString.AppendFormattedMethod;
-                        argumentsBuilder.Add(insert.Value);
+                        addArgument(insert.Value);
                         parameterNamesAndLocationsBuilder.Add(null);
                         isLiteral = false;
                         hasAlignment = false;
@@ -769,13 +788,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                         if (insert.Alignment is not null)
                         {
                             hasAlignment = true;
-                            argumentsBuilder.Add(insert.Alignment);
+                            addArgument(insert.Alignment);
                             parameterNamesAndLocationsBuilder.Add(("alignment", insert.Alignment.Syntax.Location));
                         }
                         if (insert.Format is not null)
                         {
                             hasFormat = true;
-                            argumentsBuilder.Add(insert.Format);
+                            addArgument(insert.Format);
                             parameterNamesAndLocationsBuilder.Add(("format", insert.Format.Syntax.Location));
                         }
                         numFormatHoles++;
@@ -786,7 +805,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         Debug.Assert(boundLiteral.ConstantValue != null && boundLiteral.ConstantValue.IsString);
                         var literalText = boundLiteral.ConstantValue.StringValue;
                         methodName = BoundInterpolatedString.AppendLiteralMethod;
-                        argumentsBuilder.Add(boundLiteral.Update(ConstantValue.Create(literalText), boundLiteral.Type));
+                        addArgument(boundLiteral.Update(ConstantValue.Create(literalText), boundLiteral.Type));
                         isLiteral = true;
                         hasAlignment = false;
                         hasFormat = false;
@@ -809,6 +828,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                     var call = MakeInvocationExpression(part.Syntax, implicitBuilderReceiver, methodName, arguments, diagnostics, names: parameterNamesAndLocations, searchExtensionMethodsIfNecessary: false);
                     builderAppendCalls.Add(call);
                     positionInfo.Add((isLiteral, hasAlignment, hasFormat));
+
+                    if (InExpressionTree)
+                    {
+                        quotedPositionInfo!.Add((part, quotedPlaceholdersBuilder!.ToImmutableAndClear()));
+                    }
 
                     Debug.Assert(call is BoundCall or BoundDynamicInvocation or { HasErrors: true });
 
@@ -837,13 +861,19 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 builderAppendCallsArray.Add(builderAppendCalls.ToImmutableAndClear());
                 positionInfoArray.Add(positionInfo.ToImmutableAndClear());
+
+                if (InExpressionTree)
+                {
+                    quotedPositionInfoArray!.Add(quotedPositionInfo!.ToImmutableAndClear());
+                }
             }
 
             argumentsBuilder.Free();
             parameterNamesAndLocationsBuilder.Free();
             builderAppendCalls.Free();
             positionInfo.Free();
-            return (builderAppendCallsArray.ToImmutableAndFree(), builderPatternExpectsBool ?? false, positionInfoArray.ToImmutableAndFree(), baseStringLength, numFormatHoles);
+            quotedPositionInfo?.Free();
+            return (builderAppendCallsArray.ToImmutableAndFree(), builderPatternExpectsBool ?? false, positionInfoArray.ToImmutableAndFree(), quotedPositionInfoArray?.ToImmutableAndFree(), baseStringLength, numFormatHoles);
         }
 
         private BoundExpression BindInterpolatedStringHandlerInMemberCall(

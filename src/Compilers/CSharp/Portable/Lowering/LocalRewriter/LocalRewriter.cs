@@ -429,10 +429,13 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
 
         public override BoundNode VisitInterpolatedStringArgumentPlaceholder(BoundInterpolatedStringArgumentPlaceholder node)
-            => PlaceholderReplacement(node);
+            => _inExpressionLambda ? node : PlaceholderReplacement(node);
 
         public override BoundNode? VisitInterpolatedStringHandlerPlaceholder(BoundInterpolatedStringHandlerPlaceholder node)
-            => PlaceholderReplacement(node);
+            => _inExpressionLambda ? node : PlaceholderReplacement(node);
+
+        public override BoundNode? VisitInterpolatedStringHandlerAppendMethodArgumentPlaceholder(BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder node)
+            => _inExpressionLambda ? node : PlaceholderReplacement(node);
 
         /// <summary>
         /// Returns substitution currently used by the rewriter for a placeholder node.

@@ -804,33 +804,17 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 if (node.DeconstructionOpt is { DeconstructionAssignment: var assignment, TargetPlaceholder: var placeholder })
                 {
-                    var inputParameterSymbol = _bound.SynthesizedParameter(placeholder.Type, "t");
-                    var inputParameter = _bound.Parameter(inputParameterSymbol);
-                    var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                    var inputParamExpr = _bound.Local(inputParamExprSymbol);
-                    var inputParam = ExprFactory("Parameter", _bound.Typeof(placeholder.Type), _bound.Literal("t"));
+                    var builder = GetLambdaExpressionBuilder();
+                    
+                    var inputParamExpr = builder.AddParameter(placeholder.Type, "t");
 
-                    var replacements = new Dictionary<BoundDeconstructValuePlaceholder, BoundExpression>
-                    {
-                        { placeholder, inputParameter }
-                    };
+                    _deconstructValuePlaceholderMap[placeholder] = inputParamExpr;
 
-                    _parameterMap.Add(inputParameterSymbol, inputParamExpr);
+                    var rewrittenAssignmentExpr = Visit(assignment);
 
-                    var rewrittenAssignment = (BoundExpression)new DeconstructValuePlaceholderSubstitutor(replacements).Visit(assignment);
-                    var rewrittenAssignmentExpr = Visit(rewrittenAssignment);
+                    _deconstructValuePlaceholderMap.Remove(placeholder);
 
-                    _parameterMap.Remove(inputParameterSymbol);
-
-                    return _bound.Sequence(
-                        ImmutableArray.Create(inputParamExprSymbol),
-                        ImmutableArray.Create<BoundExpression>(
-                            _bound.AssignmentExpression(inputParamExpr, inputParam)
-                        ),
-                        ExprFactory(
-                            "Lambda",
-                            rewrittenAssignmentExpr,
-                            _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
+                    return builder.Build(rewrittenAssignmentExpr);
                 }
 
                 return _bound.Null(LambdaExpressionType);
@@ -1081,9 +1065,9 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (info is QuotedMethodArgumentInfo { Receiver: var receiver, Call: var call })
             {
-                var inputParamExprSymbol = _bound.SynthesizedLocal(ParameterExpressionType);
-                var inputParamExpr = _bound.Local(inputParamExprSymbol);
-                var inputParam = ExprFactory("Parameter", _bound.Typeof(receiver.Type), _bound.Literal(receiver.ParameterSymbol.Name));
+                var builder = GetLambdaExpressionBuilder();
+
+                var inputParamExpr = builder.AddParameter(receiver.Type, receiver.ParameterSymbol.Name);
 
                 _parameterMap.Add(receiver.ParameterSymbol, inputParamExpr);
 
@@ -1091,15 +1075,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 _parameterMap.Remove(receiver.ParameterSymbol);
 
-                return _bound.Sequence(
-                    ImmutableArray.Create(inputParamExprSymbol),
-                    ImmutableArray.Create<BoundExpression>(
-                        _bound.AssignmentExpression(inputParamExpr, inputParam)
-                    ),
-                    ExprFactory(
-                        "Lambda",
-                        callExpr,
-                        _bound.ArrayOrEmpty(ParameterExpressionType, ImmutableArray.Create<BoundExpression>(inputParamExpr))));
+                return builder.Build(callExpr);
             }
 
             return _bound.Null(LambdaExpressionType);

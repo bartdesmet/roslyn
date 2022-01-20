@@ -280,7 +280,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        private BoundNode VisitInterpolatedStringForExpressionTree(BoundInterpolatedString node)
+        private BoundExpression VisitInterpolatedStringForExpressionTree(BoundInterpolatedString node, InterpolatedStringHandlerData? data)
         {
             var parts = node.Parts;
             var n = parts.Length;
@@ -299,17 +299,44 @@ namespace Microsoft.CodeAnalysis.CSharp
                         value = MakeConversionNode(value, _compilation.ObjectType, @checked: false);
                     }
 
-                    expressions.Add(fillin.Update(VisitExpression(value), fillin.Alignment, fillin.Format, fillin.IsInterpolatedStringHandlerAppendCall));
+                    expressions.Add(fillin.Update(VisitExpression(value), fillin.Alignment, fillin.Format, fillin.IsInterpolatedStringHandlerAppendCall /* REVIEW: Not used anywhere in Roslyn. */));
                 }
                 else
                 {
-                    Debug.Assert(part is BoundLiteral && part.ConstantValue != null);
+                    if (data != null)
+                    {
+                        var usesBoolReturns = data.Value.UsesBoolReturns;
 
-                    expressions.Add(part);
+                        if (part is BoundCall call)
+                        {
+                            Debug.Assert(call.Type.SpecialType == SpecialType.System_Boolean == usesBoolReturns);
+                            expressions.Add((BoundExpression)VisitCall(call));
+                        }
+                        else if (part is BoundDynamicInvocation dynamicInvocation)
+                        {
+                            var actualCall = VisitDynamicInvocation(dynamicInvocation, resultDiscarded: !usesBoolReturns);
+                            if (usesBoolReturns && actualCall.Type!.IsDynamic())
+                            {
+                                var boolType = _compilation.GetSpecialType(SpecialType.System_Boolean);
+                                actualCall = _dynamicFactory.MakeDynamicConversionExpression(actualCall, isExplicit: false, isArrayIndex: false, isChecked: false, boolType);
+                            }
+                            expressions.Add(actualCall);
+                        }
+                        else
+                        {
+                            throw ExceptionUtilities.UnexpectedValue(part.Kind);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Assert(part is BoundLiteral && part.ConstantValue != null);
+
+                        expressions.Add(part);
+                    }
                 }
             }
 
-            return node.Update(node.InterpolationData, expressions.ToImmutable(), node.ConstantValueOpt, node.Type);
+            return node.Update(data, expressions.ToImmutable(), node.ConstantValueOpt, node.Type);
         }
 
         public override BoundNode VisitInterpolatedString(BoundInterpolatedString node)
@@ -318,7 +345,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (_inExpressionLambda && HasCSharpExpression)
             {
-                return VisitInterpolatedStringForExpressionTree(node);
+                return VisitInterpolatedStringForExpressionTree(node, node.InterpolationData);
             }
 
             BoundExpression? result;

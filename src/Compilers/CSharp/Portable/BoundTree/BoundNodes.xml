@@ -2209,6 +2209,9 @@
     <Field Name="ValSafeToEscape" Type="uint" />
   </Node>
 
+  <!-- Used in expression trees when we suppress lowering Append calls. -->
+  <Node Name="BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder" Base="BoundValuePlaceholderBase"/>
+
   <Node Name="BoundStringInsert" Base="BoundExpression">
     <Field Name="Type" Type="TypeSymbol?" Override="true" Null="always"/>
     <Field Name="Value" Type="BoundExpression" Null="disallow"/>

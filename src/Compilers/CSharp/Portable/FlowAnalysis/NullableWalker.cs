@@ -526,6 +526,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.DeconstructValuePlaceholder:
                 case BoundKind.InterpolatedStringHandlerPlaceholder:
                 case BoundKind.InterpolatedStringArgumentPlaceholder:
+                case BoundKind.InterpolatedStringHandlerAppendMethodArgumentPlaceholder:
                 case BoundKind.ObjectOrCollectionValuePlaceholder:
                 case BoundKind.AwaitableValuePlaceholder:
                     return;
@@ -10899,6 +10900,14 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
 
         public override BoundNode? VisitInterpolatedStringHandlerPlaceholder(BoundInterpolatedStringHandlerPlaceholder node)
+        {
+            // These placeholders don't yet follow proper placeholder discipline
+            AssertPlaceholderAllowedWithoutRegistration(node);
+            SetNotNullResult(node);
+            return null;
+        }
+
+        public override BoundNode? VisitInterpolatedStringHandlerAppendMethodArgumentPlaceholder(BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder node)
         {
             // These placeholders don't yet follow proper placeholder discipline
             AssertPlaceholderAllowedWithoutRegistration(node);

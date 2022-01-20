@@ -25,6 +25,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public readonly ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>> PositionInfo;
 
+        public readonly ImmutableArray<ImmutableArray<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>>? QuotedPositionInfo;
+
         public bool HasTrailingHandlerValidityParameter => ArgumentPlaceholders.Length > 0 && ArgumentPlaceholders[^1].ArgumentIndex == BoundInterpolatedStringArgumentPlaceholder.TrailingConstructorValidityParameter;
 
         public readonly BoundInterpolatedStringHandlerPlaceholder ReceiverPlaceholder;
@@ -38,6 +40,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             uint scopeOfContainingExpression,
             ImmutableArray<BoundInterpolatedStringArgumentPlaceholder> placeholders,
             ImmutableArray<ImmutableArray<(bool IsLiteral, bool HasAlignment, bool HasFormat)>> positionInfo,
+            ImmutableArray<ImmutableArray<(BoundExpression Part, ImmutableArray<BoundInterpolatedStringHandlerAppendMethodArgumentPlaceholder> Placeholders)>>? quotedPositionInfo,
             BoundInterpolatedStringHandlerPlaceholder receiverPlaceholder)
         {
             Debug.Assert(construction is BoundObjectCreationExpression or BoundDynamicObjectCreationExpression or BoundBadExpression);
@@ -51,6 +54,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ScopeOfContainingExpression = scopeOfContainingExpression;
             ArgumentPlaceholders = placeholders;
             PositionInfo = positionInfo;
+            QuotedPositionInfo = quotedPositionInfo;
             ReceiverPlaceholder = receiverPlaceholder;
         }
 
