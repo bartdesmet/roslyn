@@ -2030,14 +2030,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitLocal(BoundLocal node)
         {
-            if (node.ConstantValueOpt != null)
+            if (node.ConstantValueOpt == null && _localMap.TryGetValue(node.LocalSymbol, out var expr))
             {
-                return Constant(node);
+                return expr;
             }
-            else
-            {
-                return _localMap[node.LocalSymbol];
-            }
+
+            return Constant(node);
         }
 
         private BoundExpression VisitThrowExpression(BoundThrowExpression node)
