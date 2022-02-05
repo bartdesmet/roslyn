@@ -16,7 +16,8 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             if (_inExpressionLambda)
             {
-                return node.Update(VisitExpression(node.Expression), (BoundPattern)Visit(node.Pattern)!, node.IsNegated, node.DecisionDag, node.WhenTrueLabel, node.WhenFalseLabel, node.Type);
+                // NB: We don't use the dag for expression tree lowering, so we can keep the ReachabilityDecisionDag as-is.
+                return node.Update(VisitExpression(node.Expression), (BoundPattern)Visit(node.Pattern)!, node.IsNegated, node.ReachabilityDecisionDag, node.WhenTrueLabel, node.WhenFalseLabel, node.Type);
             }
 
             BoundDecisionDag decisionDag = node.GetDecisionDagForLowering(_factory.Compilation);

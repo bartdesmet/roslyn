@@ -20,7 +20,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var rewrittenExpression = VisitExpression(node.Expression);
                 var rewrittenSections = VisitList(node.SwitchSections);
 
-                return node.Update(rewrittenExpression, node.InnerLocals, node.InnerLocalFunctions, rewrittenSections, node.DecisionDag, node.DefaultLabel, node.BreakLabel);
+                // NB: We don't use the dag for expression tree lowering, so we can keep the ReachabilityDecisionDag as-is.
+                return node.Update(rewrittenExpression, node.InnerLocals, node.InnerLocalFunctions, rewrittenSections, node.ReachabilityDecisionDag, node.DefaultLabel, node.BreakLabel);
             }
 
             return SwitchStatementLocalRewriter.Rewrite(this, node);

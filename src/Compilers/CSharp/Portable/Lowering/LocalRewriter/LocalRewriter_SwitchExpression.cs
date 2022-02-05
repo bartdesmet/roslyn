@@ -20,7 +20,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var expression = VisitExpression(node.Expression);
                 var switchArms = VisitList(node.SwitchArms);
-                return node.Update(node.NaturalTypeOpt, node.WasTargetTyped, expression, switchArms, node.DecisionDag, node.DefaultLabel, node.ReportedNotExhaustive, node.Type);
+
+                // NB: We don't use the dag for expression tree lowering, so we can keep the ReachabilityDecisionDag as-is.
+                return node.Update(node.NaturalTypeOpt, node.WasTargetTyped, expression, switchArms, node.ReachabilityDecisionDag, node.DefaultLabel, node.ReportedNotExhaustive, node.Type);
             }
 
             // The switch expression is lowered to an expression that involves the use of side-effects
