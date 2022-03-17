@@ -3575,6 +3575,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             return null;
         }
 
+        public override BoundNode VisitInOperator(BoundInOperator node)
+        {
+            VisitRvalue(node.Operand);
+            VisitRvalue(node.Range);
+            return null;
+        }
+
         /// <summary>
         /// This visitor represents just the non-assignment part of the null coalescing assignment
         /// operator (when the left operand is non-null).

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
@@ -2312,6 +2313,43 @@ namespace Microsoft.CodeAnalysis.CSharp
                         loweredRight),
                     sizeOfExpression),
                 Conversion.PointerToInteger);
+        }
+
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            var loweredOperand = VisitExpression(node.Operand);
+
+            var local = _factory.StoreToTemp(loweredOperand, out var assignment);
+
+            BoundExpression? expr = null;
+
+            if (node.Range.LeftOperandOpt is BoundConversion { Operand: var left })
+            {
+                expr = _factory.IntLessThanOrEqual(left, local);
+            }
+
+            if (node.Range.RightOperandOpt is BoundConversion { Operand: var right })
+            {
+                var check = _factory.IntLessThan(local, right);
+
+                if (expr == null)
+                {
+                    expr = check;
+                }
+                else
+                {
+                    expr = _factory.LogicalAnd(expr, check);
+                }
+            }
+
+            expr ??= _factory.Literal(true);
+
+            return new BoundSequence(
+                syntax: node.Syntax,
+                locals: ImmutableArray.Create(local.LocalSymbol),
+                sideEffects: ImmutableArray.Create<BoundExpression>(assignment),
+                value: expr,
+                type: node.Type);
         }
     }
 }

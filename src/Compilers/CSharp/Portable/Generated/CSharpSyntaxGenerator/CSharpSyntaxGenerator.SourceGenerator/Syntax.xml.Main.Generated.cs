@@ -2666,7 +2666,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case SyntaxKind.GreaterThanOrEqualExpression:
                 case SyntaxKind.IsExpression:
                 case SyntaxKind.AsExpression:
-                case SyntaxKind.CoalesceExpression: break;
+                case SyntaxKind.CoalesceExpression:
+                case SyntaxKind.InExpression: break;
                 default: throw new ArgumentException(nameof(kind));
             }
             if (left == null) throw new ArgumentNullException(nameof(left));
@@ -2693,7 +2694,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case SyntaxKind.GreaterThanEqualsToken:
                 case SyntaxKind.IsKeyword:
                 case SyntaxKind.AsKeyword:
-                case SyntaxKind.QuestionQuestionToken: break;
+                case SyntaxKind.QuestionQuestionToken:
+                case SyntaxKind.InKeyword: break;
                 default: throw new ArgumentException(nameof(operatorToken));
             }
             if (right == null) throw new ArgumentNullException(nameof(right));
@@ -2729,6 +2731,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 SyntaxKind.IsExpression => SyntaxKind.IsKeyword,
                 SyntaxKind.AsExpression => SyntaxKind.AsKeyword,
                 SyntaxKind.CoalesceExpression => SyntaxKind.QuestionQuestionToken,
+                SyntaxKind.InExpression => SyntaxKind.InKeyword,
                 _ => throw new ArgumentOutOfRangeException(),
             };
 

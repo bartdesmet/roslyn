@@ -782,6 +782,14 @@
     <Field Name="ConversionKind" Type="ConversionKind"/>
   </Node>
 
+  <Node Name="BoundInOperator" Base="BoundExpression">
+    <!-- Non-null type is required for this node kind -->
+    <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>
+
+    <Field Name="Operand" Type="BoundExpression"/>
+    <Field Name="Range" Type="BoundRangeExpression"/>
+  </Node>
+
   <Node Name="BoundAsOperator" Base="BoundExpression">
     <!-- Non-null type is required for this node kind -->
     <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>

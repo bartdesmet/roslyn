@@ -83,6 +83,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         DefaultLiteral,
         DefaultExpression,
         IsOperator,
+        InOperator,
         AsOperator,
         SizeOfOperator,
         Conversion,
@@ -2718,6 +2719,41 @@ namespace Microsoft.CodeAnalysis.CSharp
             if (operand != this.Operand || targetType != this.TargetType || conversionKind != this.ConversionKind || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
             {
                 var result = new BoundIsOperator(this.Syntax, operand, targetType, conversionKind, type, this.HasErrors);
+                result.CopyAttributes(this);
+                return result;
+            }
+            return this;
+        }
+    }
+
+    internal sealed partial class BoundInOperator : BoundExpression
+    {
+        public BoundInOperator(SyntaxNode syntax, BoundExpression operand, BoundRangeExpression range, TypeSymbol type, bool hasErrors = false)
+            : base(BoundKind.InOperator, syntax, type, hasErrors || operand.HasErrors() || range.HasErrors())
+        {
+
+            RoslynDebug.Assert(operand is object, "Field 'operand' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(range is object, "Field 'range' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+            RoslynDebug.Assert(type is object, "Field 'type' cannot be null (make the type nullable in BoundNodes.xml to remove this check)");
+
+            this.Operand = operand;
+            this.Range = range;
+        }
+
+
+        public new TypeSymbol Type => base.Type!;
+
+        public BoundExpression Operand { get; }
+
+        public BoundRangeExpression Range { get; }
+        [DebuggerStepThrough]
+        public override BoundNode? Accept(BoundTreeVisitor visitor) => visitor.VisitInOperator(this);
+
+        public BoundInOperator Update(BoundExpression operand, BoundRangeExpression range, TypeSymbol type)
+        {
+            if (operand != this.Operand || range != this.Range || !TypeSymbol.Equals(type, this.Type, TypeCompareKind.ConsiderEverything))
+            {
+                var result = new BoundInOperator(this.Syntax, operand, range, type, this.HasErrors);
                 result.CopyAttributes(this);
                 return result;
             }
@@ -8953,6 +8989,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return VisitDefaultExpression((BoundDefaultExpression)node, arg);
                 case BoundKind.IsOperator:
                     return VisitIsOperator((BoundIsOperator)node, arg);
+                case BoundKind.InOperator:
+                    return VisitInOperator((BoundInOperator)node, arg);
                 case BoundKind.AsOperator:
                     return VisitAsOperator((BoundAsOperator)node, arg);
                 case BoundKind.SizeOfOperator:
@@ -9336,6 +9374,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public virtual R VisitDefaultLiteral(BoundDefaultLiteral node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitDefaultExpression(BoundDefaultExpression node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitIsOperator(BoundIsOperator node, A arg) => this.DefaultVisit(node, arg);
+        public virtual R VisitInOperator(BoundInOperator node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitAsOperator(BoundAsOperator node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitSizeOfOperator(BoundSizeOfOperator node, A arg) => this.DefaultVisit(node, arg);
         public virtual R VisitConversion(BoundConversion node, A arg) => this.DefaultVisit(node, arg);
@@ -9559,6 +9598,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public virtual BoundNode? VisitDefaultLiteral(BoundDefaultLiteral node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitDefaultExpression(BoundDefaultExpression node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitIsOperator(BoundIsOperator node) => this.DefaultVisit(node);
+        public virtual BoundNode? VisitInOperator(BoundInOperator node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitAsOperator(BoundAsOperator node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitSizeOfOperator(BoundSizeOfOperator node) => this.DefaultVisit(node);
         public virtual BoundNode? VisitConversion(BoundConversion node) => this.DefaultVisit(node);
@@ -9948,6 +9988,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             this.Visit(node.Operand);
             this.Visit(node.TargetType);
+            return null;
+        }
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            this.Visit(node.Operand);
+            this.Visit(node.Range);
             return null;
         }
         public override BoundNode? VisitAsOperator(BoundAsOperator node)
@@ -11078,6 +11124,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundTypeExpression targetType = (BoundTypeExpression)this.Visit(node.TargetType);
             TypeSymbol? type = this.VisitType(node.Type);
             return node.Update(operand, targetType, node.ConversionKind, type);
+        }
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            BoundExpression operand = (BoundExpression)this.Visit(node.Operand);
+            BoundRangeExpression range = (BoundRangeExpression)this.Visit(node.Range);
+            TypeSymbol? type = this.VisitType(node.Type);
+            return node.Update(operand, range, type);
         }
         public override BoundNode? VisitAsOperator(BoundAsOperator node)
         {
@@ -12929,6 +12982,24 @@ namespace Microsoft.CodeAnalysis.CSharp
             else
             {
                 updatedNode = node.Update(operand, targetType, node.ConversionKind, node.Type);
+            }
+            return updatedNode;
+        }
+
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            BoundExpression operand = (BoundExpression)this.Visit(node.Operand);
+            BoundRangeExpression range = (BoundRangeExpression)this.Visit(node.Range);
+            BoundInOperator updatedNode;
+
+            if (_updatedNullabilities.TryGetValue(node, out (NullabilityInfo Info, TypeSymbol? Type) infoAndType))
+            {
+                updatedNode = node.Update(operand, range, infoAndType.Type!);
+                updatedNode.TopLevelNullability = infoAndType.Info;
+            }
+            else
+            {
+                updatedNode = node.Update(operand, range, node.Type);
             }
             return updatedNode;
         }
@@ -15165,6 +15236,15 @@ namespace Microsoft.CodeAnalysis.CSharp
             new TreeDumperNode("operand", null, new TreeDumperNode[] { Visit(node.Operand, null) }),
             new TreeDumperNode("targetType", null, new TreeDumperNode[] { Visit(node.TargetType, null) }),
             new TreeDumperNode("conversionKind", node.ConversionKind, null),
+            new TreeDumperNode("type", node.Type, null),
+            new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
+            new TreeDumperNode("hasErrors", node.HasErrors, null)
+        }
+        );
+        public override TreeDumperNode VisitInOperator(BoundInOperator node, object? arg) => new TreeDumperNode("inOperator", null, new TreeDumperNode[]
+        {
+            new TreeDumperNode("operand", null, new TreeDumperNode[] { Visit(node.Operand, null) }),
+            new TreeDumperNode("range", null, new TreeDumperNode[] { Visit(node.Range, null) }),
             new TreeDumperNode("type", node.Type, null),
             new TreeDumperNode("isSuppressed", node.IsSuppressed, null),
             new TreeDumperNode("hasErrors", node.HasErrors, null)

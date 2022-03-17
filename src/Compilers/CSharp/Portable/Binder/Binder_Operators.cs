@@ -4299,5 +4299,61 @@ namespace Microsoft.CodeAnalysis.CSharp
                     break;
             }
         }
+
+        private BoundExpression BindInExpression(BinaryExpressionSyntax node, BindingDiagnosticBag diagnostics)
+        {
+            BoundExpression leftOperand = BindRValueWithoutTargetType(node.Left, diagnostics);
+            BoundExpression rightOperand = BindRValueWithoutTargetType(node.Right, diagnostics);
+
+            if (leftOperand.HasAnyErrors || rightOperand.HasAnyErrors)
+            {
+                leftOperand = BindToTypeForErrorRecovery(leftOperand);
+                rightOperand = BindToTypeForErrorRecovery(rightOperand);
+                throw new NotImplementedException();
+            }
+
+            if (leftOperand.Type?.IsNullableType() == true)
+            {
+                throw new NotImplementedException();
+            }
+
+            if (rightOperand.Type?.IsNullableType() == true)
+            {
+                throw new NotImplementedException();
+            }
+
+            if (leftOperand.Type?.SpecialType != SpecialType.System_Int32)
+            {
+                throw new NotImplementedException();
+            }
+
+            if (rightOperand is not BoundRangeExpression range)
+            {
+                throw new NotImplementedException();
+            }
+
+            void checkRangeOperand(BoundExpression? operand)
+            {
+                if (operand != null)
+                {
+                    if (operand is BoundFromEndIndexExpression)
+                    {
+                        throw new NotImplementedException();
+                    }
+
+                    if (operand is not BoundConversion)
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
+            }
+
+            checkRangeOperand(range.LeftOperandOpt);
+            checkRangeOperand(range.RightOperandOpt);
+
+            var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
+
+            return new BoundInOperator(node, leftOperand, range, booleanType, hasErrors: false);
+        }
     }
 }

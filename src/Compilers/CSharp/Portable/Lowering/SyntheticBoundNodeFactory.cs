@@ -633,6 +633,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             return Binary(BinaryOperatorKind.IntLessThan, SpecialType(Microsoft.CodeAnalysis.SpecialType.System_Boolean), left, right);
         }
 
+        public BoundBinaryOperator IntLessThanOrEqual(BoundExpression left, BoundExpression right)
+        {
+            return Binary(BinaryOperatorKind.IntLessThanOrEqual, SpecialType(Microsoft.CodeAnalysis.SpecialType.System_Boolean), left, right);
+        }
+
         public BoundBinaryOperator IntGreaterThanOrEqual(BoundExpression left, BoundExpression right)
         {
             return Binary(BinaryOperatorKind.IntGreaterThanOrEqual, SpecialType(CodeAnalysis.SpecialType.System_Boolean), left, right);
