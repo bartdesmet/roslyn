@@ -10634,6 +10634,7 @@ tryAgain:
                 case SyntaxKind.IsExpression:
                 case SyntaxKind.AsExpression:
                 case SyntaxKind.IsPatternExpression:
+                case SyntaxKind.InExpression:
                     return Precedence.Relational;
                 case SyntaxKind.SwitchExpression:
                 case SyntaxKind.WithExpression:

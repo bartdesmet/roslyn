@@ -1692,6 +1692,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax
     /// <item><description><see cref="SyntaxKind.IsExpression"/></description></item>
     /// <item><description><see cref="SyntaxKind.AsExpression"/></description></item>
     /// <item><description><see cref="SyntaxKind.CoalesceExpression"/></description></item>
+    /// <item><description><see cref="SyntaxKind.InExpression"/></description></item>
     /// </list>
     /// </remarks>
     public sealed partial class BinaryExpressionSyntax : ExpressionSyntax

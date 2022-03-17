@@ -782,6 +782,27 @@
     <Field Name="ConversionKind" Type="ConversionKind"/>
   </Node>
 
+  <Node Name="BoundInOperatorElementPlaceholder" Base="BoundValuePlaceholderBase">
+    <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>
+  </Node>
+
+  <Node Name="BoundInOperatorSourcePlaceholder" Base="BoundValuePlaceholderBase">
+    <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>
+  </Node>
+
+  <Node Name="BoundInOperator" Base="BoundExpression">
+    <!-- Non-null type is required for this node kind -->
+    <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>
+
+    <Field Name="Element" Type="BoundExpression"/>
+    <Field Name="Source" Type="BoundExpression"/>
+
+    <Field Name="ElementPlaceholder" Type="BoundInOperatorElementPlaceholder?" SkipInVisitor="true" Null="allow"/>
+    <Field Name="SourcePlaceholder" Type="BoundInOperatorSourcePlaceholder?" SkipInVisitor="true" Null="allow"/>
+
+    <Field Name="Test" Type="BoundExpression?" SkipInVisitor="true" Null="allow"/>
+  </Node>
+
   <Node Name="BoundAsOperator" Base="BoundExpression">
     <!-- Non-null type is required for this node kind -->
     <Field Name="Type" Type="TypeSymbol" Override="true" Null="disallow"/>

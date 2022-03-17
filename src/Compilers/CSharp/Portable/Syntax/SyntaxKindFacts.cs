@@ -594,6 +594,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return SyntaxKind.CoalesceExpression;
                 case SyntaxKind.IsKeyword:
                     return SyntaxKind.IsExpression;
+                case SyntaxKind.InKeyword:
+                    return SyntaxKind.InExpression;
                 case SyntaxKind.AsKeyword:
                     return SyntaxKind.AsExpression;
                 case SyntaxKind.BarToken:
