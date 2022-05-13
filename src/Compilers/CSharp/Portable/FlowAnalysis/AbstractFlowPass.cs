@@ -3577,8 +3577,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitInOperator(BoundInOperator node)
         {
-            VisitRvalue(node.Operand);
-            VisitRvalue(node.Range);
+            //VisitRvalue(node.Operand);
+            //VisitRvalue(node.Range);
+            VisitRvalue(node.Element);
+            VisitRvalue(node.Source);
             return null;
         }
 

@@ -2317,39 +2317,79 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode? VisitInOperator(BoundInOperator node)
         {
-            var loweredOperand = VisitExpression(node.Operand);
-
-            var local = _factory.StoreToTemp(loweredOperand, out var assignment);
-
-            BoundExpression? expr = null;
-
-            if (node.Range.LeftOperandOpt is BoundConversion { Operand: var left })
+            if (node.Source is BoundRangeExpression range)
             {
-                expr = _factory.IntLessThanOrEqual(left, local);
+                Debug.Assert(node.SourcePlaceholder is null);
+                Debug.Assert(node.ElementPlaceholder is null);
+                Debug.Assert(node.Test is null);
+
+                var loweredOperand = VisitExpression(node.Element);
+
+                var local = _factory.StoreToTemp(loweredOperand, out var assignment);
+
+                BoundExpression? expr = null;
+
+                if (range.LeftOperandOpt is BoundConversion { Operand: var left })
+                {
+                    expr = _factory.IntLessThanOrEqual(left, local);
+                }
+
+                if (range.RightOperandOpt is BoundConversion { Operand: var right })
+                {
+                    var check = _factory.IntLessThan(local, right);
+
+                    if (expr == null)
+                    {
+                        expr = check;
+                    }
+                    else
+                    {
+                        expr = _factory.LogicalAnd(expr, check);
+                    }
+                }
+
+                expr ??= _factory.Literal(true);
+
+                return new BoundSequence(
+                    syntax: node.Syntax,
+                    locals: ImmutableArray.Create(local.LocalSymbol),
+                    sideEffects: ImmutableArray.Create<BoundExpression>(assignment),
+                    value: expr,
+                    type: node.Type);
+            }
+            else
+            {
+                Debug.Assert(node.SourcePlaceholder is not null);
+                Debug.Assert(node.ElementPlaceholder is not null);
+                Debug.Assert(node.Test is not null);
+
+                var loweredElement = VisitExpression(node.Element);
+                var localElement = _factory.StoreToTemp(loweredElement, out var assignElement);
+
+                var loweredSource= VisitExpression(node.Source);
+                var localSource = _factory.StoreToTemp(loweredSource, out var assignSource);
+
+                AddPlaceholderReplacement(node.ElementPlaceholder, localElement);
+                AddPlaceholderReplacement(node.SourcePlaceholder, localSource);
+
+                var test = VisitExpression(node.Test);
+
+                RemovePlaceholderReplacement(node.SourcePlaceholder);
+                RemovePlaceholderReplacement(node.ElementPlaceholder);
+
+                return new BoundSequence(
+                    syntax: node.Syntax,
+                    locals: ImmutableArray.Create(localElement.LocalSymbol, localSource.LocalSymbol),
+                    sideEffects: ImmutableArray.Create<BoundExpression>(assignElement, assignSource),
+                    value: test,
+                    type: node.Type);
             }
 
-            if (node.Range.RightOperandOpt is BoundConversion { Operand: var right })
-            {
-                var check = _factory.IntLessThan(local, right);
-
-                if (expr == null)
-                {
-                    expr = check;
-                }
-                else
-                {
-                    expr = _factory.LogicalAnd(expr, check);
-                }
-            }
-
-            expr ??= _factory.Literal(true);
-
-            return new BoundSequence(
-                syntax: node.Syntax,
-                locals: ImmutableArray.Create(local.LocalSymbol),
-                sideEffects: ImmutableArray.Create<BoundExpression>(assignment),
-                value: expr,
-                type: node.Type);
+            throw new NotImplementedException();
         }
+
+        public override BoundNode? VisitInOperatorElementPlaceholder(BoundInOperatorElementPlaceholder node) => PlaceholderReplacement(node);
+
+        public override BoundNode? VisitInOperatorSourcePlaceholder(BoundInOperatorSourcePlaceholder node) => PlaceholderReplacement(node);
     }
 }

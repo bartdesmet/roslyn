@@ -4312,48 +4312,118 @@ namespace Microsoft.CodeAnalysis.CSharp
                 throw new NotImplementedException();
             }
 
-            if (leftOperand.Type?.IsNullableType() == true)
+            if (rightOperand is BoundRangeExpression range)
             {
-                throw new NotImplementedException();
-            }
-
-            if (rightOperand.Type?.IsNullableType() == true)
-            {
-                throw new NotImplementedException();
-            }
-
-            if (leftOperand.Type?.SpecialType != SpecialType.System_Int32)
-            {
-                throw new NotImplementedException();
-            }
-
-            if (rightOperand is not BoundRangeExpression range)
-            {
-                throw new NotImplementedException();
-            }
-
-            void checkRangeOperand(BoundExpression? operand)
-            {
-                if (operand != null)
+                if (leftOperand.Type?.IsNullableType() == true)
                 {
-                    if (operand is BoundFromEndIndexExpression)
-                    {
-                        throw new NotImplementedException();
-                    }
+                    throw new NotImplementedException();
+                }
 
-                    if (operand is not BoundConversion)
+                if (rightOperand.Type?.IsNullableType() == true)
+                {
+                    throw new NotImplementedException();
+                }
+
+                if (leftOperand.Type?.SpecialType != SpecialType.System_Int32)
+                {
+                    throw new NotImplementedException();
+                }
+
+                void checkRangeOperand(BoundExpression operand)
+                {
+                    if (operand != null)
                     {
-                        throw new NotImplementedException();
+                        if (operand is BoundFromEndIndexExpression)
+                        {
+                            throw new NotImplementedException();
+                        }
+
+                        if (operand is not BoundConversion)
+                        {
+                            throw new NotImplementedException();
+                        }
                     }
                 }
+
+                checkRangeOperand(range.LeftOperandOpt);
+                checkRangeOperand(range.RightOperandOpt);
+
+                var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
+
+                return new BoundInOperator(node, leftOperand, range, null, null, null, booleanType, hasErrors: false);
+            }
+            else if (rightOperand.Type is ArrayTypeSymbol { IsSZArray: true, ElementType: var elementType } arrayType)
+            {
+                if (!leftOperand.Type.Equals(elementType, TypeCompareKind.ConsiderEverything))
+                {
+                    throw new NotImplementedException();
+                }
+
+                var array = new BoundInOperatorSourcePlaceholder(node, arrayType);
+                var element = new BoundInOperatorElementPlaceholder(node, elementType);
+
+                var sysArrayType = Compilation.GetSpecialType(SpecialType.System_Array);
+
+                var indexOf = MakeInvocationExpression(node, new BoundTypeExpression(node, aliasOpt: null, sysArrayType), "IndexOf",
+                    ImmutableArray.Create<BoundExpression>(array, element), diagnostics);
+
+                if (indexOf.HasAnyErrors)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var int32Type = Compilation.GetSpecialType(SpecialType.System_Int32);
+                var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
+
+                var res = new BoundBinaryOperator(node, BinaryOperatorKind.IntGreaterThanOrEqual, null, LookupResultKind.Viable, indexOf, new BoundLiteral(node, ConstantValue.Create(0), int32Type), booleanType);
+
+                return new BoundInOperator(node, leftOperand, rightOperand, element, array, res, booleanType, hasErrors: false);
+            }
+            else if (rightOperand.Type.IsStringType())
+            {
+                var charType = Compilation.GetSpecialType(SpecialType.System_Char);
+
+                if (!leftOperand.Type.Equals(charType, TypeCompareKind.ConsiderEverything))
+                {
+                    throw new NotImplementedException();
+                }
+
+                var stringValue = new BoundInOperatorSourcePlaceholder(node, rightOperand.Type);
+                stringValue.UseAsThis();
+                var charValue = new BoundInOperatorElementPlaceholder(node, charType);
+
+                var indexOf = MakeInvocationExpression(node, stringValue, "IndexOf", ImmutableArray.Create<BoundExpression>(charValue), diagnostics);
+
+                if (indexOf.HasAnyErrors)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var int32Type = Compilation.GetSpecialType(SpecialType.System_Int32);
+                var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
+
+                var res = new BoundBinaryOperator(node, BinaryOperatorKind.IntGreaterThanOrEqual, null, LookupResultKind.Viable, indexOf, new BoundLiteral(node, ConstantValue.Create(0), int32Type), booleanType);
+
+                return new BoundInOperator(node, leftOperand, rightOperand, charValue, stringValue, res, booleanType, hasErrors: false);
+            }
+            else
+            {
+                var elem = new BoundInOperatorElementPlaceholder(node, leftOperand.Type);
+                var expr = new BoundInOperatorSourcePlaceholder(node, rightOperand.Type);
+
+                var contains = MakeInvocationExpression(node, expr, "Contains", ImmutableArray.Create<BoundExpression>(elem), diagnostics);
+
+                if (contains.HasAnyErrors)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
+
+                return new BoundInOperator(node, leftOperand, rightOperand, elem, expr, contains, booleanType, hasErrors: false);
             }
 
-            checkRangeOperand(range.LeftOperandOpt);
-            checkRangeOperand(range.RightOperandOpt);
-
-            var booleanType = Compilation.GetSpecialType(SpecialType.System_Boolean);
-
-            return new BoundInOperator(node, leftOperand, range, booleanType, hasErrors: false);
+            throw new NotImplementedException();
         }
     }
 }

@@ -192,6 +192,20 @@ namespace Microsoft.CodeAnalysis.CSharp
         public sealed override bool IsEquivalentToThisReference => throw ExceptionUtilities.Unreachable;
     }
 
+    internal partial class BoundInOperatorElementPlaceholder
+    {
+        public sealed override bool IsEquivalentToThisReference { get; }
+    }
+
+    internal partial class BoundInOperatorSourcePlaceholder
+    {
+        private bool _isEquivalentToThisReference;
+
+        public sealed override bool IsEquivalentToThisReference => _isEquivalentToThisReference;
+
+        public void UseAsThis() { _isEquivalentToThisReference = true; }
+    }
+
     internal partial class BoundThisReference
     {
         public sealed override bool IsEquivalentToThisReference => true;

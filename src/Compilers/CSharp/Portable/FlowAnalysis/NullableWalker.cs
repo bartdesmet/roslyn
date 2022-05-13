@@ -10366,7 +10366,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         public override BoundNode VisitInOperator(BoundInOperator node)
         {
             SetNotNullResult(node);
-            return null;
+            return null!;
         }
 
         public override BoundNode? VisitAsOperator(BoundAsOperator node)
