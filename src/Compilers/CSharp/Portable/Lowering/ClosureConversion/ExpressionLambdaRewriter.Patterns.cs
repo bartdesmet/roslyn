@@ -150,7 +150,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression VisitRelationalPattern(BoundRelationalPattern node) =>
             CSharpPatternFactory(
-                GetBinaryOperatorName(node.Relation, out var _, out var _, out var _),
+                GetBinaryOperatorName(node.Relation, null, out var _, out var _, out var _),
                 PatternInfo(node),
                 PatternConstant(node.Value)
             );
