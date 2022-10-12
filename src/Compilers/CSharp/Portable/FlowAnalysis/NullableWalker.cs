@@ -10525,6 +10525,14 @@ namespace Microsoft.CodeAnalysis.CSharp
             return null;
         }
 
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            VisitRvalue(node.Element);
+            VisitRvalue(node.Source);
+            SetNotNullResult(node);
+            return null;
+        }
+
         public override BoundNode? VisitAsOperator(BoundAsOperator node)
         {
             var argumentType = VisitRvalueWithState(node.Operand);

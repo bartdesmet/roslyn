@@ -644,6 +644,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         PointerMemberAccessExpression = 8690,  // arrow access:   a->b
         ConditionalAccessExpression = 8691,    // question mark access:   a?.b , a?[1]
         UnsignedRightShiftExpression = 8692,
+        InExpression = 8693,
 
         // binding expressions
         MemberBindingExpression = 8707,

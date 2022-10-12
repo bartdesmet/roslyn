@@ -634,6 +634,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return SyntaxKind.LogicalAndExpression;
                 case SyntaxKind.BarBarToken:
                     return SyntaxKind.LogicalOrExpression;
+                case SyntaxKind.InKeyword:
+                    return SyntaxKind.InExpression;
                 default:
                     return SyntaxKind.None;
             }

@@ -17,6 +17,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 
 namespace Microsoft.CodeAnalysis.CSharp
 {
@@ -792,6 +793,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case SyntaxKind.WithExpression:
                     return BindWithExpression((WithExpressionSyntax)node, diagnostics);
 
+                case SyntaxKind.InExpression:
+                    return BindInExpression((BinaryExpressionSyntax)node, diagnostics);
+
                 default:
                     // NOTE: We could probably throw an exception here, but it's conceivable
                     // that a non-parser syntax tree could reach this point with an unexpected
@@ -800,6 +804,87 @@ namespace Microsoft.CodeAnalysis.CSharp
                     diagnostics.Add(ErrorCode.ERR_InternalError, node.Location);
                     return BadExpression(node);
             }
+        }
+
+        private BoundExpression BindInExpression(BinaryExpressionSyntax node, BindingDiagnosticBag diagnostics)
+        {
+            var booleanType = GetSpecialType(SpecialType.System_Boolean, diagnostics, node);
+
+            var element = BindRValueWithoutTargetType(node.Left, diagnostics);
+            var source = BindRValueWithoutTargetType(node.Right, diagnostics);
+
+            BoundInOperatorElementPlaceholder? elementPlaceholder = null;
+            BoundInOperatorSourcePlaceholder? sourcePlaceholder = null;
+            BoundExpression? test = null;
+
+            if (source is BoundRangeExpression range)
+            {
+                if (element?.Type.SpecialType != SpecialType.System_Int32)
+                {
+                    // TODO: complain
+                }
+
+                void checkOperand(BoundExpression? operand)
+                {
+                    if (operand != null)
+                    {
+                        if (operand is not BoundConversion { ConversionKind: ConversionKind.ImplicitUserDefined, Operand.Type.SpecialType: SpecialType.System_Int32 })
+                        {
+                            // TODO: complain
+                        }
+                    }
+                }
+
+                checkOperand(range.LeftOperandOpt);
+                checkOperand(range.RightOperandOpt);
+            }
+            else
+            {
+                elementPlaceholder = new(node, element.Type);
+                sourcePlaceholder = new(node, source.Type);
+
+                if (source.Type.IsStringType())
+                {
+                    if (element.Type?.SpecialType != SpecialType.System_Char)
+                    {
+                        // TODO: complain
+                    }
+
+                    var int32Type = GetSpecialType(SpecialType.System_Int32, diagnostics, node);
+
+                    test =
+                        new BoundBinaryOperator(
+                            node,
+                            BinaryOperatorKind.GreaterThanOrEqual,
+                            data: null,
+                            LookupResultKind.Viable,
+                            left: MakeInvocationExpression(
+                                node,
+                                sourcePlaceholder,
+                                "IndexOf",
+                                ImmutableArray.Create<BoundExpression>(elementPlaceholder),
+                                diagnostics
+                            ),
+                            right: new BoundLiteral(node, ConstantValue.Create(0), int32Type),
+                            booleanType
+                        );
+                }
+                else if (source.Type is ArrayTypeSymbol { IsSZArray: true, ElementType: var elementType })
+                {
+                    if (!elementType.Equals(element.Type, TypeCompareKind.ConsiderEverything))
+                    {
+                        // TODO: complain
+                    }
+
+                    throw new NotImplementedException();
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
+            }
+
+            return new BoundInOperator(node, element, source, elementPlaceholder, sourcePlaceholder, test, booleanType);
         }
 
 #nullable enable

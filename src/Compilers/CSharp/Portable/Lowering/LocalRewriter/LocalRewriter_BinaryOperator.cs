@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
@@ -2390,6 +2391,78 @@ namespace Microsoft.CodeAnalysis.CSharp
                         loweredRight),
                     sizeOfExpression),
                 Conversion.PointerToInteger);
+        }
+
+        public override BoundNode? VisitInOperator(BoundInOperator node)
+        {
+            var locals = ImmutableArray.CreateBuilder<LocalSymbol>();
+            var stores = ImmutableArray.CreateBuilder<BoundExpression>();
+
+            BoundExpression storeToTemp(BoundExpression expr)
+            {
+                var local = _factory.StoreToTemp(expr, out var store);
+
+                locals.Add(local.LocalSymbol);
+                stores.Add(store);
+
+                return local;
+            }
+
+            BoundExpression? expr = null;
+
+            var element = storeToTemp(VisitExpression(node.Element));
+
+            if (node.Source is BoundRangeExpression { LeftOperandOpt: var left, RightOperandOpt: var right })
+            {
+                if (left is BoundConversion { Operand: var l })
+                {
+                    var lower = storeToTemp(VisitExpression(l));
+
+                    expr = _factory.IntLessThanOrEqual(lower, element);
+                }
+
+                if (right is BoundConversion { Operand: var r })
+                {
+                    var upper = storeToTemp(VisitExpression(r));
+
+                    var check = _factory.IntLessThan(element, upper);
+
+                    if (expr != null)
+                    {
+                        expr = _factory.LogicalAnd(expr, check);
+                    }
+                    else
+                    {
+                        expr = check;
+                    }
+                }
+
+                expr ??= _factory.Literal(true);
+            }
+            else
+            {
+                var source = storeToTemp(VisitExpression(node.Source));
+
+                AddPlaceholderReplacement(node.ElementPlaceholder, element);
+                AddPlaceholderReplacement(node.SourcePlaceholder, source);
+
+                expr = VisitExpression(node.Test);
+
+                RemovePlaceholderReplacement(node.SourcePlaceholder);
+                RemovePlaceholderReplacement(node.ElementPlaceholder);
+            }
+
+            return _factory.Sequence(locals.ToImmutable(), stores.ToImmutable(), expr);
+        }
+
+        public override BoundNode? VisitInOperatorElementPlaceholder(BoundInOperatorElementPlaceholder node)
+        {
+            return PlaceholderReplacement(node);
+        }
+
+        public override BoundNode? VisitInOperatorSourcePlaceholder(BoundInOperatorSourcePlaceholder node)
+        {
+            return PlaceholderReplacement(node);
         }
     }
 }

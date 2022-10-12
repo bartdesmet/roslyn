@@ -967,6 +967,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                 case BoundKind.ListPatternIndexPlaceholder:
                     throw ExceptionUtilities.UnexpectedValue(expr.Kind);
 
+                case BoundKind.InOperatorElementPlaceholder:
+                case BoundKind.InOperatorSourcePlaceholder:
+                    return false;
+
                 case BoundKind.Conversion:
                     return expr is BoundConversion { Conversion: { IsInterpolatedStringHandler: true }, Type: { IsValueType: true } };
             }

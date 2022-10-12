@@ -2687,6 +2687,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             return null;
         }
 
+        public override BoundNode VisitInOperator(BoundInOperator node)
+        {
+            VisitRvalue(node.Element);
+            VisitRvalue(node.Source);
+            return null;
+        }
+
         public override BoundNode VisitIsOperator(BoundIsOperator node)
         {
             if (VisitPossibleConditionalAccess(node.Operand, out var stateWhenNotNull))

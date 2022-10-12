@@ -36317,7 +36317,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                 case SyntaxKind.GreaterThanOrEqualExpression:
                 case SyntaxKind.IsExpression:
                 case SyntaxKind.AsExpression:
-                case SyntaxKind.CoalesceExpression: break;
+                case SyntaxKind.CoalesceExpression:
+                case SyntaxKind.InExpression: break;
                 default: throw new ArgumentException(nameof(kind));
             }
 #if DEBUG
@@ -36346,7 +36347,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                 case SyntaxKind.GreaterThanEqualsToken:
                 case SyntaxKind.IsKeyword:
                 case SyntaxKind.AsKeyword:
-                case SyntaxKind.QuestionQuestionToken: break;
+                case SyntaxKind.QuestionQuestionToken:
+                case SyntaxKind.InKeyword: break;
                 default: throw new ArgumentException(nameof(operatorToken));
             }
             if (right == null) throw new ArgumentNullException(nameof(right));
@@ -41388,7 +41390,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                 case SyntaxKind.GreaterThanOrEqualExpression:
                 case SyntaxKind.IsExpression:
                 case SyntaxKind.AsExpression:
-                case SyntaxKind.CoalesceExpression: break;
+                case SyntaxKind.CoalesceExpression:
+                case SyntaxKind.InExpression: break;
                 default: throw new ArgumentException(nameof(kind));
             }
 #if DEBUG
@@ -41417,7 +41420,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                 case SyntaxKind.GreaterThanEqualsToken:
                 case SyntaxKind.IsKeyword:
                 case SyntaxKind.AsKeyword:
-                case SyntaxKind.QuestionQuestionToken: break;
+                case SyntaxKind.QuestionQuestionToken:
+                case SyntaxKind.InKeyword: break;
                 default: throw new ArgumentException(nameof(operatorToken));
             }
             if (right == null) throw new ArgumentNullException(nameof(right));
